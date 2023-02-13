@@ -1,6 +1,7 @@
 import asyncio
 import websockets
 import librosa
+from scipy.io import wavfile
 import json
 import numpy as np
 IP_ADDR = "localhost"
@@ -16,12 +17,12 @@ async def auth_system(websocket):
         if "congratulation" in response_str:
             return True
 
-async def init_check(websocket):
+"""async def init_check(websocket):
     while True:
         response_str = await websocket.recv()
         print(response_str)
         if "Model Loaded" in response_str:
-            return True
+            return True"""
 
  
 # 向服务器端发送消息
@@ -32,15 +33,17 @@ async def clientSend(websocket):
         下面这段需要替换，持续输入音频，以json的方式发送到server，再接受预测结果
         """
         if input_text.endswith(".wav"):
-            sig, rate = librosa.load(input_text, sr=16000)
-            n_chunks = int(len(sig)//32000)
+            #sig, rate = librosa.load(input_text, sr=16000)
+            rate, sig = wavfile.read(input_text)
+            n_chunks = int(len(sig)//16000)
             for i in range(n_chunks):
-                sig_section=sig[i*32000:min((i+1)*32000, len(sig))].tolist()
-                data = json.dumps({"wav": sig_section, "rate": 16000},ensure_ascii=False).encode('gbk')
+                sig_section=sig[i*16000:min((i+1)*16000, len(sig))].tolist()
+                data = json.dumps({"wav": sig_section, "rate": 16000},ensure_ascii=False).encode('utf-8')
                 await websocket.send(data)
                 result = await websocket.recv()
                 result = json.loads(result)
                 print("output_shape:", np.array(result["result"]).shape)
+                print(result)
             continue
         if input_text == "exit":
             print(f'"exit", bye!')
@@ -56,7 +59,7 @@ async def clientRun():
     ipaddress = IP_ADDR + ":" + IP_PORT
     async with websockets.connect("ws://" + ipaddress) as websocket:
         await auth_system(websocket)
-        await init_check(websocket)
+        #await init_check(websocket)
         await clientSend(websocket)
  
 #main function

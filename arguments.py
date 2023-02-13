@@ -15,3 +15,7 @@ def get_train_args(args):
     args.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     return args
 
+def get_server_args(args):
+    args.IP = "127.0.0.1"
+    args.port = "7890"
+    return args

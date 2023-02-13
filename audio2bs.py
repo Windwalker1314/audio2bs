@@ -81,11 +81,17 @@ class Audio2BS():
         return output_features.transpose(1, 2)
 
     def inference(self, audio, rate):
-        audio = self.processor(audio, return_tensors="pt", sampling_rate=rate).input_values
+        if type(audio[0])==int:
+            audio = np.array(audio)/32768
+            audio = self.processor(audio, return_tensors="pt", sampling_rate=rate).input_values
+        elif type(audio[0])==float:
+            audio = self.processor(audio, return_tensors="pt", sampling_rate=rate).input_values
+        else:
+            raise TypeError
         chunks = torch.split(audio, self.audio_section_length*rate, dim=1)
         output = []
         for chunk in chunks:
-            x = torch.FloatTensor(chunk).to(device=self.device)
+            x = torch.FloatTensor(chunk).to(dtype=torch.float32, device=self.device)
             if chunk.shape[1]<640:
                 break
             with torch.no_grad():
