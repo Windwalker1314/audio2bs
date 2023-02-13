@@ -3,8 +3,9 @@ import numpy as np
 from tqdm import tqdm
 import librosa
 from util import linear_interpolation, MOUTH_BS
-from transformers import HubertModel,Wav2Vec2FeatureExtractor
+from transformers import HubertModel
 import pandas as pd
+from model import LSTM
 import time
 import os
 
@@ -14,9 +15,8 @@ def load_base_model(model_path,model_type, device):
         model_fps = 49
     else:
         raise NameError
-    model.to(device)
+    model.to(device).eval()
     return model, model_fps
-
 
 def preprocessing_input(x, y, base_model, model_fps):
     assert len(x.shape)==3 and x.shape[1]==1, "Expected 3D shape but get "+str(x.shape)
@@ -42,26 +42,19 @@ def np_to_csv(x, calibration):
         timecode = '%02d:%02d:%02d:%02d.%d' % (h,m,s,f,i)
         px.iloc[i,0] = timecode
     return px
-    
-def inference(args, model, checkpoint_path, wav_lst, calibration):
-    torch.cuda.empty_cache()
-    t1 = time.time() # Load Processor
-    processor = Wav2Vec2FeatureExtractor.from_pretrained(args.base_model_path)
 
-    t2 = time.time()  # Load Hubert model
-    base_model, fps = load_base_model(args.base_model_path, "Hubert", args.device)
-    base_model.eval()
-    
-
-    t3 = time.time()  # Load LSTM model
+def load_model(args):
+    model = LSTM()
+    model.to(args.device)
+    checkpoint_path=os.path.join(args.model_path, args.model_name+".pth")
     checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
-    t4 = time.time() 
-    print("Load Processor: %dms" % (int(round((t2-t1) * 1000))))
-    print("Load Base model (Hubert): %dms" % (int(round((t3-t2) * 1000))))
-    print("Load LSTM model (LSTM): %dms\n" % (int(round((t4-t3) * 1000))))
-    
+    return model
+
+def inference(args, processor, model, base_model, fps ,wav_lst, calibration, verbose=True):
+    torch.cuda.empty_cache()
+
     for wav in wav_lst:
         model.reset_hidden_cell()
         wav_path = os.path.join(args.test_data_path, wav)
@@ -103,11 +96,35 @@ def inference(args, model, checkpoint_path, wav_lst, calibration):
         px.to_csv(wav_path[:-4]+"_"+args.model_name+".csv",index=False)
         t10 = time.time() # output to csv
         torch.cuda.empty_cache()
-        print("Audio length: %ds" % (audio.shape[-1]/16000))
-        print("Load and process audio: %dms" % (int(round((t6-t5) * 1000))))
-        print("Base model inference (feature extraction): %dms" % (int(round((base_model_infer_time) * 1000))))
-        print("LSTM model inference: %dms" % (int(round((lstm_model_infer_time) * 1000))))
-        print("Output blendshape to csv: %dms\n" % (int(round((t10-t9) * 1000))))
+        if verbose:
+            print("Audio length: %ds" % (audio.shape[-1]/16000))
+            print("Load and process audio: %dms" % (int(round((t6-t5) * 1000))))
+            print("Base model inference (feature extraction): %dms" % (int(round((base_model_infer_time) * 1000))))
+            print("LSTM model inference: %dms" % (int(round((lstm_model_infer_time) * 1000))))
+            print("Output blendshape to csv: %dms\n" % (int(round((t10-t9) * 1000))))
+
+def inference_simple(args, sig, processor, model, base_model, fps):
+    audio = processor(sig, return_tensors="pt", sampling_rate=args.sampling_rate).input_values
+    chunks = torch.split(audio,args.audio_section_length*args.sampling_rate+1, dim=1)
+    output = []
+    for chunk in chunks:
+        x = torch.FloatTensor(chunk).to(device=args.device)
+        if chunk.shape[1]<640:
+            break
+        with torch.no_grad():
+            last_h_state = base_model(x).last_hidden_state
+        x = linear_interpolation(last_h_state, input_fps=fps, output_fps=60)
+        with torch.no_grad():
+            x = model(x).detach().cpu().numpy()
+
+        output.append(x)
+        del x
+        del chunk
+        del last_h_state
+        torch.cuda.empty_cache()
+    x = np.concatenate(output,axis=1)
+    return x
+
 
 def test(args, model, checkpoint_path, dataset, criterion):
     base_model,fps = load_base_model(args.base_model_path, "Hubert", args.device)
