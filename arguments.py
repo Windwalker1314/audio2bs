@@ -13,7 +13,7 @@ def get_common_args():
     parser.add_argument("--bs_path", type=str, default="bs", help="The subdir that stors blendshape data")
     parser.add_argument("--model_name", type=str, default="LSTM_aug", help="Model Name")
     parser.add_argument("--cuda", type=bool, default=True, help="whether to use GPU")
-    parser.add_argument("--load_model", type=bool, default=False, help="Whether to load the pretrained model and resume training")
+    parser.add_argument("--load_model", type=bool, default=True, help="Whether to load the pretrained model and resume training")
     parser.add_argument("--augmentation", type=bool, default=True, help="Whether to use audio augmentation")
     parser.add_argument("--num_wavs", type=int, default=1000, help="The total number of audio data instances")
     parser.add_argument("--epochs", type=int, default=50, help="The number of epochs for training")
@@ -21,7 +21,7 @@ def get_common_args():
     parser.add_argument("--patience", type=int, default=2, help="Early Stopping")
     parser.add_argument("--sampling_rate", type=int, default=16000, help="Sampling rate of wav file (resample)")
     parser.add_argument("--learning_rate", type=float, default=0.0001, help="learning rate")
-    parser.add_argument("--max_audio_length", type=float, default=10, help="max_audio_length")
+    parser.add_argument("--max_audio_length", type=float, default=5, help="max_audio_length")
     parser.add_argument("--audio_section_length", type=float, default=1, help="max_audio_length")
     args = parser.parse_args()
     return args

@@ -28,9 +28,9 @@ def init_biased_mask(n_head, max_seq_len, period):
 
 # Alignment Bias
 def enc_dec_mask(device, T, S):
-    mask = torch.ones(T, S)
-    for i in range(T):
-        mask[i, i] = 0
+    mask = torch.ones(T, S) # T小 S大
+    for i in range(min(T,S)):
+        mask[-(i+1), -(i+1)] = 0
     return (mask==1).to(device=device)
 
 class PeriodicPositionalEncoding(nn.Module):
@@ -77,7 +77,7 @@ class LSTM(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, input_size=1024, hidden_layer_size=64, output_size=31):
+    def __init__(self, args,input_size=1024, hidden_layer_size=64, output_size=31):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
@@ -93,9 +93,10 @@ class Transformer(nn.Module):
         self.vertice_map = nn.Linear(self.out_size, self.hidden_layer_size)
 
         self.obj_vector = nn.Linear(5, self.hidden_layer_size, bias=False)
-        self.device = "cpu" #args.device
+        self.device = args.device
 
         self.vertice_emb = None
+        self.style_emb = None
         nn.init.constant_(self.vertice_map_r.weight, 0)
         nn.init.constant_(self.vertice_map_r.bias, 0)
     
@@ -103,14 +104,15 @@ class Transformer(nn.Module):
         # audio 1, length, 1024
         # bs    1, length, 31
         hidden_states = self.audio_feature_map(audio)
+        audio_len = audio.shape[1]
         one_hot = torch.Tensor([[1,0,0,0,0]]).to(device=self.device)
         obj_embedding = self.obj_vector(one_hot)
         frame_num = audio.shape[1]
         for i in range(frame_num):
             if self.vertice_emb is None:
                 self.vertice_emb = obj_embedding.unsqueeze(1) # (1,1,feature_dim)
-                style_emb = self.vertice_emb
-                vertice_input = self.PPE(style_emb)
+                self.style_emb = self.vertice_emb
+                vertice_input = self.PPE(self.style_emb)
             else:
                 vertice_input = self.PPE(self.vertice_emb)
             tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
@@ -118,16 +120,18 @@ class Transformer(nn.Module):
             vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask, memory_mask)
             vertice_out = self.vertice_map_r(vertice_out)
             new_output = self.vertice_map(vertice_out[:,-1,:]).unsqueeze(1)
-            new_output = new_output + style_emb
+            new_output = new_output + self.style_emb
             self.vertice_emb = torch.cat((self.vertice_emb, new_output), 1)
-            if self.vertice_emb.shape[1]>300:
-                self.vertice_emb = self.vertice_emb[:,1:,:]
+        del tgt_mask
+        del memory_mask
+        del vertice_out
         return vertice_out
     
     def reset_hidden_cell(self):
         self.vertice_emb = None
-
+        self.style_emb = None
+"""
 a = Transformer()
 audio = torch.randn(1,20,1024)
 bs = torch.randn(1,20,31)
-a(audio)
+a(audio)"""

@@ -41,10 +41,10 @@ def infer(args):
     model = LSTM()
     model.to(args.device)
     test_data = os.listdir(args.test_data_path)
-    wavs = ["tts.wav"]
-    """for i in test_data:
+    wavs = []
+    for i in test_data:
         if i.endswith(".wav"):
-            wavs.append(i)"""
+            wavs.append(i)
     inference(args, model, checkpoint_path=os.path.join(args.model_path, args.model_name+".pth"), wav_lst=wavs, calibration=False)
 
 def test_model(args):
@@ -61,8 +61,8 @@ def test_model(args):
 if __name__=="__main__":
     args = get_common_args()
     args = get_train_args(args)
-    runner(args)
-    #infer(args)
+    #runner(args)
+    infer(args)
     #test_model(args)
 
 

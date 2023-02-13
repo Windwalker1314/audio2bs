@@ -52,7 +52,7 @@ class EarlyStopping():
 def load_base_model(model_path,model_type, device):
     if model_type=="Hubert":
         model = HubertModel.from_pretrained(model_path)
-        model_fps = 50
+        model_fps = 49
     else:
         raise NameError
     model.to(device)
@@ -113,7 +113,10 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                     # torch.Size([batch，csv_length, feature_dim]) torch.Size([batch，csv_length, bs_dim])
                     assert(labels.shape[0]==args.batch_size and labels.shape[2]==31 and labels.shape[1]==inputs.shape[1])
                     outputs.append(model(inputs))
+                    del inputs
+                    del labels
                     torch.cuda.empty_cache()
+                
                 outputs = torch.cat(outputs,dim=1)
                 optimizer.zero_grad()
                 loss = criterion(outputs, y_train.to(device=device,dtype=torch.float32))
@@ -121,6 +124,10 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                 optimizer.step()
 
                 train_loss.append(loss.cpu().detach().numpy())
+
+                del loss
+                del outputs
+                del y_train
                 torch.cuda.empty_cache()
                 # Description will be displayed on the left
                 if j%10==0:
@@ -143,10 +150,18 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
                     with torch.no_grad():
                         outputs.append(model(inputs))
+
+                    del inputs
+                    del labels
                     torch.cuda.empty_cache()
                 outputs = torch.cat(outputs,dim=1)
                 loss = criterion(outputs, y_valid.to(device=device,dtype=torch.float32))
                 valid_loss.append(loss.cpu().detach().numpy())
+
+                del loss
+                del outputs
+                del y_valid
+                torch.cuda.empty_cache()
                     
                 if j%20==0:
                     t.set_description('Epoch %i validation' % epoch)
@@ -197,34 +212,27 @@ def inference(args, model, checkpoint_path, wav_lst, calibration):
     print("Load LSTM model (LSTM): %dms\n" % (int(round((t4-t3) * 1000))))
     
     for wav in wav_lst:
+        model.reset_hidden_cell()
         wav_path = os.path.join(args.test_data_path, wav)
 
         t5 = time.time() # Load audio
         sig, rate = librosa.load(wav_path, sr=args.sampling_rate)
         audio = processor(sig, return_tensors="pt", sampling_rate=rate).input_values # (1, audiolength)
         
-        """chunk_audio_length = 16000*args.audio_section_length
-        n_chunks = audio.shape[-1]//chunk_audio_length
-        
-        if audio.shape[-1] % chunk_audio_length != 0:
-            n_chunks += 1
-        chunks = []
-        for i in range(n_chunks):
-            chunks.append(audio[:,i*chunk_audio_length:min((i+1)*chunk_audio_length,len(audio[0]))])"""
-        chunks = torch.split(audio,args.audio_section_length*args.sampling_rate, dim=1)
+        chunks = torch.split(audio,args.audio_section_length*args.sampling_rate+1, dim=1)
         output = []
 
         base_model_infer_time = 0
         lstm_model_infer_time = 0
 
-        model.reset_hidden_cell()
         for chunk in chunks:
-            
             x = torch.FloatTensor(chunk).to(device=args.device)
-
+            if chunk.shape[1]<640:
+                break
             t6 = time.time() # Base model inference
             with torch.no_grad():
                 last_h_state = base_model(x).last_hidden_state
+                print(last_h_state.shape)
             x = linear_interpolation(last_h_state, input_fps=fps, output_fps=60)
             t7 = time.time() # LSTM inference
             with torch.no_grad():
