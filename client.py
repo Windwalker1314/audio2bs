@@ -24,6 +24,9 @@ async def clientHands(websocket):
 async def clientSend(websocket):
     while True:
         input_text = input()
+        """
+        下面这段需要替换，持续输入音频，以json的方式发送到server，再接受预测结果
+        """
         if input_text.endswith(".wav"):
             sig, rate = librosa.load(input_text, sr=16000)
             n_chunks = int(len(sig)//16000)
@@ -33,7 +36,7 @@ async def clientSend(websocket):
                 await websocket.send(data)
                 result = await websocket.recv()
                 result = json.loads(result)
-                print(np.array(result["result"]).shape)
+                print("output_shape:", np.array(result["result"]).shape)
             continue
         if input_text == "exit":
             print(f'"exit", bye!')
