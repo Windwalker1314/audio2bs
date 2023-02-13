@@ -6,19 +6,23 @@ import numpy as np
 IP_ADDR = "localhost"
 IP_PORT = "7890"
 
-key = "123"
- 
-# 握手，通过发送hello，接收"123"来进行双方的握手。
-async def clientHands(websocket):
+
+# 向服务器端认证，用户名密码通过才能退出循环
+async def auth_system(websocket):
     while True:
-        await websocket.send("hello")
+        cred_text = input("please enter your username and password: ")
+        await websocket.send(cred_text)
         response_str = await websocket.recv()
-        if key in response_str:
-            print("握手成功")
-            recv_text = await websocket.recv()
-            print(recv_text)
+        if "congratulation" in response_str:
             return True
- 
+
+async def init_check(websocket):
+    while True:
+        response_str = await websocket.recv()
+        print(response_str)
+        if "Model Loaded" in response_str:
+            return True
+
  
 # 向服务器端发送消息
 async def clientSend(websocket):
@@ -29,9 +33,9 @@ async def clientSend(websocket):
         """
         if input_text.endswith(".wav"):
             sig, rate = librosa.load(input_text, sr=16000)
-            n_chunks = int(len(sig)//16000)
+            n_chunks = int(len(sig)//32000)
             for i in range(n_chunks):
-                sig_section=sig[i*16000:min((i+1)*16000, len(sig))].tolist()
+                sig_section=sig[i*32000:min((i+1)*32000, len(sig))].tolist()
                 data = json.dumps({"wav": sig_section, "rate": 16000},ensure_ascii=False).encode('gbk')
                 await websocket.send(data)
                 result = await websocket.recv()
@@ -51,8 +55,8 @@ async def clientSend(websocket):
 async def clientRun():
     ipaddress = IP_ADDR + ":" + IP_PORT
     async with websockets.connect("ws://" + ipaddress) as websocket:
-        await clientHands(websocket)
-
+        await auth_system(websocket)
+        await init_check(websocket)
         await clientSend(websocket)
  
 #main function

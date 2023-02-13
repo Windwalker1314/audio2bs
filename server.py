@@ -3,26 +3,24 @@ import asyncio
 import websockets
 from arguments import get_common_args,get_train_args
 from audio2bs import Audio2BS
-from transformers import Wav2Vec2FeatureExtractor
 import os
 
 IP_ADDR = "127.0.0.1"
 IP_PORT = "7890"
- 
-key = "123"
 
-# 握手，通过接收hello，发送"123"来握手。
-async def serverHands(websocket):
-    print("ServerHands")
+
+# 检测客户端权限，用户名密码通过才能退出循环
+async def check_permit(websocket):
     while True:
-        recv_text = await websocket.recv()
-        print("recv_text=" + recv_text)
-        if recv_text == "hello":
-            print("connected success")
-            await websocket.send(key)
+        recv_str = await websocket.recv()
+        cred_dict = recv_str.split(":")
+        if cred_dict[0] == "admin" and cred_dict[1] == "123456":
+            response_str = "congratulation, you have connect with server\r\nnow, you can do something else"
+            await websocket.send(response_str)
             return True
         else:
-            await websocket.send("connected fail")
+            response_str = "sorry, the username or password is wrong, please submit again"
+            await websocket.send(response_str)
  
  
 # 接收从客户端发来的消息并处理，告知客户端
@@ -36,6 +34,7 @@ async def serverRecv(websocket, model):
         
 
 async def init_model(websocket):
+    await websocket.send("Loading model")
     args = get_common_args()
     args = get_train_args(args)
     base_model_path = args.base_model_path
@@ -49,9 +48,8 @@ async def init_model(websocket):
 
  
 # 握手并且接收数据
-async def serverRun(websocket, path):
-    print(path)
-    connected = await serverHands(websocket)
+async def serverRun(websocket,path):
+    connected = await check_permit(websocket)
     if connected:
         model = await init_model(websocket)
     await serverRecv(websocket, model)
