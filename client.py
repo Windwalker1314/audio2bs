@@ -1,12 +1,12 @@
 import asyncio
 import websockets
-import librosa
 from scipy.io import wavfile
 import json
 import numpy as np
 IP_ADDR = "localhost"
 IP_PORT = "7890"
 
+count = 0
 
 # 向服务器端认证，用户名密码通过才能退出循环
 async def auth_system(websocket):
@@ -45,22 +45,34 @@ async def clientSend(websocket):
                 print("output_shape:", np.array(result["result"]).shape)
                 print(result)
             continue
-        if input_text == "exit":
+        elif input_text == "exit":
             print(f'"exit", bye!')
             await websocket.close(reason="exit")
             return False
-        await websocket.send(input_text)
-        recv_text = await websocket.recv()
-        print(f"{recv_text}")
+        else:
+            await websocket.send(input_text)
+            recv_text = await websocket.recv()
+            print(f"{recv_text}")
+
  
  
 # 进行websocket连接
 async def clientRun():
     ipaddress = IP_ADDR + ":" + IP_PORT
-    async with websockets.connect("ws://" + ipaddress) as websocket:
-        await auth_system(websocket)
-        #await init_check(websocket)
-        await clientSend(websocket)
+    while True:
+        try:
+            async with websockets.connect("ws://" + ipaddress) as websocket:
+                await auth_system(websocket)
+                #await init_check(websocket)
+                await clientSend(websocket)
+        except ConnectionRefusedError as e:
+            print(e)
+            global count
+            if count==10:
+                return
+            count += 1
+            await asyncio.sleep(2)
+            print("Reconnecting...")
  
 #main function
 if __name__ == '__main__':

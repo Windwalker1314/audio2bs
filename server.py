@@ -18,8 +18,7 @@ async def check_permit(websocket):
         else:
             response_str = "sorry, the username or password is wrong, please submit again"
             await websocket.send(response_str)
- 
- 
+
 # 接收从客户端发来的消息并处理，告知客户端
 async def serverRecv(websocket, model):
     while True:
@@ -28,7 +27,6 @@ async def serverRecv(websocket, model):
         result = model.inference(data["wav"], data["rate"]).squeeze()
         out_data = json.dumps({"result": result.tolist()},ensure_ascii=False).encode('UTF-8')
         await websocket.send(out_data)
-        
 
 def init():
     args = get_common_args()
@@ -43,14 +41,11 @@ def init():
     server = websockets.serve(serverRun, args.IP, args.port)
     return server
 
- 
 # 握手并且接收数据
 async def serverRun(websocket, path):
     await check_permit(websocket)
     await serverRecv(websocket, my_model)
 
-
- 
 #main function
 if __name__ == '__main__':
     print("========Server main begin==========")
