@@ -103,15 +103,10 @@ def speed_changing(x,y):
     return out_x, out_y
 
 def test_transformer():
-    decoder_layer = nn.TransformerDecoderLayer(d_model=128, nhead=4, batch_first=True)
-    decoder = nn.TransformerDecoder(decoder_layer, num_layers=1)
-    
-    tgt = torch.rand(1, 20, 128)
-    memory = torch.rand(1, 30, 128)
-    tgt_mask = torch.rand(20,20)
-    memory_mask = torch.rand(20, 30)
-
-    out = decoder(tgt, memory, tgt_mask=tgt_mask, memory_mask=memory_mask)
+    encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=4,batch_first=True)
+    transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=2)
+    src = torch.rand(1, 600, 512)
+    out = transformer_encoder(src)
     print(out.shape)
 
 def test_parser():
@@ -122,6 +117,4 @@ def test_parser():
     return args
 
 if __name__ == "__main__":
-    from arguments import get_common_args
-    args = get_common_args()
-    print(args.model_path)
+    test_transformer()

@@ -106,7 +106,6 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                 ys = torch.split(y_train, 60*args.max_audio_length, dim=1)
                 outputs = []
                 for inputs,labels in zip(xs,ys):
-                    
                     inputs = inputs.to(device=device,dtype=torch.float32)
                     labels = labels.to(device=device,dtype=torch.float32)
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)

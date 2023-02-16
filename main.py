@@ -2,7 +2,7 @@ from arguments import get_common_args,get_train_args
 from dataset import get_dataloaders,create_dataloaders
 from trainer import train, inference,test
 import torch.optim as optim
-from model import LSTM, Transformer
+from model import LSTM, Faceformer
 import torch.nn as nn
 #from transformers import HubertModel
 import os
@@ -15,8 +15,8 @@ def runner(args):
     if "LSTM" in args.model_name:
         model = LSTM()
         model = model.to(args.device)
-    elif "Transformer" in args.model_name:
-        model = Transformer(args)
+    elif "Faceformer" in args.model_name:
+        model = Faceformer(args)
         model = model.to(args.device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     criterion = nn.MSELoss()
@@ -61,8 +61,8 @@ def test_model(args):
 if __name__=="__main__":
     args = get_common_args()
     args = get_train_args(args)
-    #runner(args)
-    infer(args)
+    runner(args)
+    #infer(args)
     #test_model(args)
 
 

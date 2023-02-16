@@ -34,7 +34,7 @@ def enc_dec_mask(device, T, S):
     return (mask==1).to(device=device)
 
 class PeriodicPositionalEncoding(nn.Module):
-    def __init__(self, d_model, dropout=0.1, period=25, max_seq_len=600):
+    def __init__(self, d_model, dropout=0.1, period=10, max_seq_len=180):
         super(PeriodicPositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
         pe = torch.zeros(period, d_model)
@@ -76,19 +76,19 @@ class LSTM(nn.Module):
         self.hidden_cell = None
 
 
-class Transformer(nn.Module):
-    def __init__(self, args,input_size=1024, hidden_layer_size=64, output_size=31):
+class Faceformer(nn.Module):
+    def __init__(self,args, input_size=1024, hidden_layer_size=64, output_size=31, n_head=2, max_seq_len=120):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
         self.hidden_layer_size = hidden_layer_size
-        self.decoder_layer = nn.TransformerDecoderLayer(d_model=self.hidden_layer_size, nhead=4, dim_feedforward=2*self.hidden_layer_size, batch_first=True) 
+        self.decoder_layer = nn.TransformerDecoderLayer(d_model=self.hidden_layer_size, nhead=n_head, dim_feedforward=2*self.hidden_layer_size, batch_first=True) 
         self.transformer_decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=1)
         self.audio_feature_map = nn.Linear(input_size, self.hidden_layer_size)
 
         self.PPE = PeriodicPositionalEncoding(self.hidden_layer_size)
 
-        self.biased_mask = init_biased_mask(n_head = 4, max_seq_len = 600, period=25)
+        self.biased_mask = init_biased_mask(n_head = n_head, max_seq_len = max_seq_len, period=10)
         self.vertice_map_r = nn.Linear(self.hidden_layer_size, self.out_size)
         self.vertice_map = nn.Linear(self.out_size, self.hidden_layer_size)
 
@@ -122,16 +122,19 @@ class Transformer(nn.Module):
             new_output = self.vertice_map(vertice_out[:,-1,:]).unsqueeze(1)
             new_output = new_output + self.style_emb
             self.vertice_emb = torch.cat((self.vertice_emb, new_output), 1)
-        del tgt_mask
-        del memory_mask
-        del vertice_out
+            del tgt_mask
+            del memory_mask
+        self.vertice_emb = self.vertice_emb[:,-1,:].unsqueeze(1)
         return vertice_out
     
     def reset_hidden_cell(self):
         self.vertice_emb = None
         self.style_emb = None
+
+
+
 """
-a = Transformer()
-audio = torch.randn(1,20,1024)
-bs = torch.randn(1,20,31)
+a = Faceformer()
+audio = torch.randn(1,6,1024)
+bs = torch.randn(1,6,31)
 a(audio)"""
