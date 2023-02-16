@@ -5,6 +5,7 @@ from transformers import HubertModel
 import torch.nn.functional as F
 import numpy as np
 import pandas as pd
+import resampy
 import time
 
 class LSTM(nn.Module):
@@ -83,11 +84,12 @@ class Audio2BS():
     def inference(self, audio, rate):
         if type(audio[0])==int:
             audio = np.array(audio)/32768
-            audio = self.processor(audio, return_tensors="pt", sampling_rate=rate).input_values
-        elif type(audio[0])==float:
-            audio = self.processor(audio, return_tensors="pt", sampling_rate=rate).input_values
+        elif type(audio[0])==list:
+            audio = np.array(audio)[:, 0]
         else:
             raise TypeError
+        audio = resampy.resample(audio.astype(float),rate,16000)
+        audio = self.processor(audio, return_tensors="pt", sampling_rate=16000).input_values
         chunks = torch.split(audio, self.audio_section_length*rate, dim=1)
         output = []
         for chunk in chunks:

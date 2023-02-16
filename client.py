@@ -6,44 +6,36 @@ import numpy as np
 IP_ADDR = "localhost"
 IP_PORT = "7890"
 
+
 count = 0
 
-# 向服务器端认证，用户名密码通过才能退出循环
-async def auth_system(websocket):
+# 向服务器端认证，用户名密码通过才能退出循环 直接输入  admin:123456
+async def auth_system(websocket): 
     while True:
         cred_text = input("please enter your username and password: ")
         await websocket.send(cred_text)
         response_str = await websocket.recv()
         if "congratulation" in response_str:
             return True
-
-"""async def init_check(websocket):
-    while True:
-        response_str = await websocket.recv()
-        print(response_str)
-        if "Model Loaded" in response_str:
-            return True"""
-
  
 # 向服务器端发送消息
 async def clientSend(websocket):
     while True:
-        input_text = input()
+        input_text = input("Enter wav path:")
         """
         下面这段需要替换，持续输入音频，以json的方式发送到server，再接受预测结果
         """
         if input_text.endswith(".wav"):
             #sig, rate = librosa.load(input_text, sr=16000)
             rate, sig = wavfile.read(input_text)
-            n_chunks = int(len(sig)//16000)
+            n_chunks = int(len(sig)//rate)
             for i in range(n_chunks):
-                sig_section=sig[i*16000:min((i+1)*16000, len(sig))].tolist()
-                data = json.dumps({"wav": sig_section, "rate": 16000},ensure_ascii=False).encode('utf-8')
+                sig_section=sig[i*rate:min((i+1)*rate, len(sig))].tolist()
+                data = json.dumps({"wav": sig_section, "rate": rate},ensure_ascii=False).encode('utf-8')
                 await websocket.send(data)
                 result = await websocket.recv()
                 result = json.loads(result)
-                print("output_shape:", np.array(result["result"]).shape)
-                print(result)
+                print("output_shape:", np.array(result["result"]).shape, "bs_name:",np.array(result["bs_name"]).shape)
             continue
         elif input_text == "exit":
             print(f'"exit", bye!')

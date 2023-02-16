@@ -25,7 +25,7 @@ async def serverRecv(websocket, model):
         data = await websocket.recv()
         data = json.loads(data)
         result = model.inference(data["wav"], data["rate"]).squeeze()
-        out_data = json.dumps({"result": result.tolist()},ensure_ascii=False).encode('UTF-8')
+        out_data = json.dumps({"result": result.tolist(), "bs_name":model.MOUTH_BS},ensure_ascii=False).encode('UTF-8')
         await websocket.send(out_data)
 
 def init():
