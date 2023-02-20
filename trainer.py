@@ -73,7 +73,8 @@ def preprocessing_input(x, y, base_model, model_fps):
     assert len(x.shape)==3 and x.shape[1]==1, "Expected 3D shape but get "+str(x.shape)
     x = x.squeeze(1)
     base_model.eval()
-    last_hidden_state = base_model(x).last_hidden_state
+    with torch.no_grad():
+        last_hidden_state = base_model(x).last_hidden_state
     # 1, length, 1024
     x = linear_interpolation(last_hidden_state, input_fps=model_fps, output_fps=60, output_len=y.shape[-2])
     return x, y
@@ -111,7 +112,8 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
                     # torch.Size([batch，csv_length, feature_dim]) torch.Size([batch，csv_length, bs_dim])
                     assert(labels.shape[0]==args.batch_size and labels.shape[2]==31 and labels.shape[1]==inputs.shape[1])
-                    outputs.append(model(inputs))
+                    y_pred = model(inputs)
+                    outputs.append(y_pred)
                     del inputs
                     del labels
                     torch.cuda.empty_cache()
@@ -218,7 +220,8 @@ def inference(args, model, checkpoint_path, wav_lst, calibration):
         sig, rate = librosa.load(wav_path, sr=args.sampling_rate)
         audio = processor(sig, return_tensors="pt", sampling_rate=rate).input_values # (1, audiolength)
         
-        chunks = torch.split(audio,args.audio_section_length*args.sampling_rate+1, dim=1)
+        chunks = torch.split(audio,args.audio_section_length*args.sampling_rate, dim=1)
+        
         output = []
 
         base_model_infer_time = 0
