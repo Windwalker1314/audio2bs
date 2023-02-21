@@ -5,7 +5,7 @@ import json
 import numpy as np
 IP_ADDR = "localhost"
 IP_PORT = "2890"
-
+import time
 
 count = 0
 
@@ -20,6 +20,7 @@ async def auth_system(websocket):
             return True
  
 # 向服务器端发送消息
+        
 async def clientSend(websocket):
     while True:
         input_text = input("Enter json path:")
@@ -30,13 +31,21 @@ async def clientSend(websocket):
             # load json file
             with open(input_text,"r") as f:
                 data = json.load(f)  # data is a python dictionary
+                #data = f.readlines()
+                #data="".join(data)
+            #data = json.loads(data)
+            #print(data)
             data_send = json.dumps(data) # datasend is a json object
+            t1 = time.time()
             await websocket.send(data_send)  # 发送json object
             result = await websocket.recv()
             result = json.loads(result)
-            print("Jawopen:", np.array(result["result"])[:,3], 
+            print("Jawopen:", np.array(result["result"]).shape, 
                   "bs_name:",np.array(result["bs_name"]).shape,
-                  "status",result["status"])
+                  "status",result["status"],
+                  "message",result["message"])
+            t2 = time.time()
+            print("Time:",int(round((t2-t1)*1000)),"ms")
             continue
         # 输入exit 断开链接
         elif input_text == "exit":

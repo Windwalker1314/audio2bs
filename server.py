@@ -6,6 +6,7 @@ from audio2bs import Audio2BS
 import os
 import base64
 import numpy as np
+import time
 
 # 检测客户端权限，用户名密码通过才能退出循环 
 async def check_permit(websocket):
@@ -36,7 +37,9 @@ async def check_permit(websocket):
 # }
 async def serverRecv(websocket, model):
     while True:
+        
         data = await websocket.recv()
+        t1 = time.time()
         message = ""
         audio = None
         status = 401
@@ -52,7 +55,7 @@ async def serverRecv(websocket, model):
             message = "Json Key Error: " + str(e)
         except Exception as e:
             message = str(type(e))+ str(e)
-
+        t2 = time.time()
         if audio is not None:
             try:
                 result = model.inference(audio, rate).squeeze().tolist()
@@ -62,13 +65,22 @@ async def serverRecv(websocket, model):
                 status = 501
         else:
             result = []
+        t3 = time.time()
         out_data = json.dumps({"result": result, "bs_name":model.MOUTH_BS, "status":status,"message":message},ensure_ascii=False).encode('UTF-8')
         await websocket.send(out_data)
+        t4 = time.time()
+        
+        print("解码加载数据:", int(round((t2-t1)*1000)), "ms")
+        print("模型推理时间:", int(round((t3-t2)*1000)), "ms")
+        print("发送数据:", int(round((t4-t3)*1000)), "ms")
 
 def handel_result(data):
     res = data["wav"]
+    if isinstance(res,str):
+        res = json.loads(res)
     rate = data["rate"]
     return_mode = data["return_mode"]
+    
     audio = res['audio']
     status = 200
     if return_mode == "sentence":

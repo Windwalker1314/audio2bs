@@ -54,7 +54,7 @@ def wss_tts(url, key, secret, txt, return_mode, speed, energy, sample_rate, audi
             res = json.loads(res)
             status = res['status']
             audio = base64.b64decode(res['audio'])
-            with open ("example.json",'w') as f:
+            with open ("example_mid.json",'w') as f:
                 json.dump({"wav":res,"rate":22050,"return_mode":"sentence"},f)
             text_raw = res['text_raw']
             text_normalized = res['text_normalized']
@@ -94,12 +94,12 @@ def wss_tts(url, key, secret, txt, return_mode, speed, energy, sample_rate, audi
     
 
 if __name__ == '__main__':
-    txt = "这是中国联通开发的语音合成系统，测试完成，运行正常"##待合成的文本，必填项
+    txt = "两只老虎两只老虎跑得快"##待合成的文本，必填项
     url = 'wss://ai.cubigdata.cn:5001/openapi/speech/tts?speeker=ttsw01'
     speed = 1.0##声音的快慢 支持0.5到1.0， 默认1.0
     energy = 1.0##声音的音量大小 支持0.5到1.0， 默认1.0
     sample_rate = 22050###声音的采样率，支持8000、16000、22050
-    return_mode = 'stream'###返回模式，必填，支持stream、sentence、only_audio
+    return_mode = 'sentence'###返回模式，必填，支持stream、sentence、only_audio
     audio_format = 'pcm'
     bit = 16
     name_save = 'test_audio.pcm'
