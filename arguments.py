@@ -20,7 +20,7 @@ def get_common_args():
     parser.add_argument("--batch_size", type=int, default=1, help="The number of epochs for training")
     parser.add_argument("--patience", type=int, default=2, help="Early Stopping")
     parser.add_argument("--sampling_rate", type=int, default=16000, help="Sampling rate of wav file (resample)")
-    parser.add_argument("--learning_rate", type=float, default=0.0001, help="learning rate")
+    parser.add_argument("--learning_rate", type=float, default=0.001, help="learning rate")
     parser.add_argument("--max_audio_length", type=float, default=2, help="max_audio_length")
     parser.add_argument("--audio_section_length", type=float, default=1, help="max_audio_length")
     args = parser.parse_args()

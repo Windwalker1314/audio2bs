@@ -195,7 +195,7 @@ print(a(audio1).shape)"""
 
 
 
-class Conformer(nn.Module):
+class Transformer(nn.Module):
     def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300):
         super().__init__()
         self.input_size=input_size
@@ -237,3 +237,46 @@ class Conformer(nn.Module):
     
     def reset_hidden_cell(self):
         self.memory = None
+
+class Conformer(nn.Module):
+    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300):
+        super().__init__()
+        self.input_size=input_size
+        self.out_size=output_size
+        self.hidden_layer_size = hidden_layer_size
+        self.max_seq_len = max_seq_len
+
+        self.conv1 = nn.Conv1d(in_channels=1024, out_channels=256, kernel_size=3, stride=2)
+
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=n_head, batch_first=True, dropout=0.5)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
+        self.PE = PositionalEncoding(self.hidden_layer_size, max_seq_len=max_seq_len)
+
+        self.linear = nn.Sequential(
+            nn.Linear(hidden_layer_size, output_size),
+            nn.ReLU(True)
+        )
+
+        self.memory = None
+
+    def forward(self,audio):
+        # audio 1, length(n_frames), 1024
+        if self.memory is not None:
+            self.memory = torch.cat((self.memory, audio), 1)
+            if self.memory.shape[1]>self.max_seq_len:
+                self.memory = self.memory[:,-self.max_seq_len:,:]
+        else:
+            self.memory = audio
+        
+        x = self.ffn(self.memory)
+        x = self.PE(x)
+        x = self.transformer_encoder(x)
+        x = self.linear(x)
+        return x[:,-audio.shape[1]:,:]
+    
+    def reset_hidden_cell(self):
+        self.memory = None
+
+m = nn.Conv1d(in_channels=1024, out_channels=128, kernel_size=3, stride=2)
+a= torch.randn(1, 1024, 60)
+print(m(a).shape)
