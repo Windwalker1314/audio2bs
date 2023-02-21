@@ -239,16 +239,24 @@ class Transformer(nn.Module):
         self.memory = None
 
 class Conformer(nn.Module):
-    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300):
+    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300, dropout_rate = 0.25):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
         self.hidden_layer_size = hidden_layer_size
         self.max_seq_len = max_seq_len
 
-        self.conv1 = nn.Conv1d(in_channels=1024, out_channels=256, kernel_size=3, stride=2)
+        self.conv1 = nn.Sequential(
+            #nn.LayerNorm(in_channels=input_size),
+            nn.Conv1d(in_channels=input_size, out_channels=256, kernel_size=3, padding="same"),
+            nn.ReLU(True),
+            nn.Dropout(p=dropout_rate),
+            nn.Conv1d(in_channels=256, out_channels=128, kernel_size=3, padding="same"),
+            nn.ReLU(True),
+            nn.Dropout(p=dropout_rate)
+        )
 
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=n_head, batch_first=True, dropout=0.5)
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=n_head, batch_first=True, dropout=dropout_rate)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
         self.PE = PositionalEncoding(self.hidden_layer_size, max_seq_len=max_seq_len)
 
@@ -268,7 +276,9 @@ class Conformer(nn.Module):
         else:
             self.memory = audio
         
-        x = self.ffn(self.memory)
+        x = self.memory.permute(0,2,1)
+        x = self.conv1(x)
+        x = x.permute(0,2,1)
         x = self.PE(x)
         x = self.transformer_encoder(x)
         x = self.linear(x)
@@ -276,7 +286,9 @@ class Conformer(nn.Module):
     
     def reset_hidden_cell(self):
         self.memory = None
+"""
+m = nn.Conv1d(in_channels=1024, out_channels=256, kernel_size=3, padding="same")
+m1 = nn.Conv1d(in_channels=256, out_channels=256, kernel_size=5, padding="same")
 
-m = nn.Conv1d(in_channels=1024, out_channels=128, kernel_size=3, stride=2)
 a= torch.randn(1, 1024, 60)
-print(m(a).shape)
+print(m(a).shape)"""
