@@ -43,7 +43,7 @@ def load_pcm(pcm_file):
     print(t2)
 
 #pcm2wav("test_audio.pcm","test_audio.wav")
-load_pcm("test_audio.pcm")"""
+load_pcm("test_audio.pcm")""""""
 import json
 import base64
 try:
@@ -58,4 +58,33 @@ except json.decoder.JSONDecodeError as e:
 except KeyError as e:
     print(e)
 except Exception as e:
-    print(str(type(e)),e)
+    print(str(type(e)),e)"""
+
+from audio2bs import LSTM
+import torch
+import time
+
+model = torch.load("./model/LSTM_aug.pt").to("cuda:0").eval()
+
+def predict(m,a):
+    with torch.no_grad():
+        m(a)
+    torch.cuda.empty_cache()
+    return
+
+t1 = time.time()
+a = torch.randn((1,60,1024)).to(dtype=torch.float32, device="cuda:0")
+predict(model,a)
+t2 = time.time()
+print(int(round((t2-t1)*1000)))
+
+time.sleep(5)
+t2 = time.time()
+b = torch.randn((1,60,1024)).to(dtype=torch.float32, device="cuda:0")
+predict(model,b)
+t3 = time.time()
+print(int(round((t3-t2)*1000)))
+c = torch.randn((1,60,1024)).to(dtype=torch.float32, device="cuda:0")
+predict(model,c)
+t4 = time.time()
+print(int(round((t4-t3)*1000)))

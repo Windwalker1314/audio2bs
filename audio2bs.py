@@ -54,15 +54,19 @@ class Audio2BS():
                         'MouthLowerDownRight', 'MouthUpperUpLeft', 'MouthUpperUpRight',
                         'CheekPuff', 'CheekSquintLeft', 'CheekSquintRight','TongueOut']
         self.model.reset_hidden_cell()
+        torch.cuda.empty_cache()
                         
-    def load_model(self, model_path):
-        model = LSTM()
-        model.to(self.device)
-        checkpoint_path = model_path
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        model.eval()
-        return model
+    def load_model(self, model_path:str):
+        if model_path.endswith(".pth"):
+            model = LSTM()
+            
+            checkpoint_path = model_path
+            checkpoint = torch.load(checkpoint_path)
+            model.load_state_dict(checkpoint['model_state_dict'])
+        elif model_path.endswith(".pt"):
+            model = torch.load(model_path)
+        
+        return model.to(self.device).eval()
     
     def load_base_model(self, model_path, model_type="Hubert"):
         if model_type=="Hubert":
@@ -70,8 +74,8 @@ class Audio2BS():
             model_fps = 49
         else:
             raise NameError
-        model.to(self.device).eval()
-        return model, model_fps
+        
+        return model.to(self.device).eval(), model_fps
     
     def linear_interpolation(self, features, input_fps, output_fps, output_len=None):
         features = features.transpose(1, 2)
@@ -92,8 +96,24 @@ class Audio2BS():
             audio = np.array(audio)
         else:
             raise TypeError
+        
         audio = resampy.resample(audio.astype(float),rate,16000)
         audio = self.processor(audio, return_tensors="pt", sampling_rate=16000).input_values
+        if audio.shape[1]<32000:
+            x = torch.FloatTensor(audio).to(dtype=torch.float32, device=self.device)
+            t1 = time.perf_counter()
+            with torch.no_grad():
+                last_h_state = self.base_model(x).last_hidden_state
+            t2 = time.perf_counter()
+            x = self.linear_interpolation(last_h_state, input_fps=self.fps, output_fps=60)
+            with torch.no_grad():
+                output = self.model(x)
+                output = output.detach().cpu().numpy()
+            t3 = time.perf_counter()
+            #del last_h_state
+            print("LSTM",int(round((t3-t2)*1000)), "Hubert",int(round((t2-t1)*1000)))
+            torch.cuda.empty_cache()
+            return output
         chunks = torch.split(audio, self.audio_section_length*rate, dim=1)
         output = []
         for chunk in chunks:
@@ -111,8 +131,10 @@ class Audio2BS():
             del chunk
             del last_h_state
             torch.cuda.empty_cache()
-        x = np.concatenate(output,axis=1)
-        return x
+        if len(output)>0:
+            x = np.concatenate(output,axis=1)
+            return x
+        return output
     
     def np_to_csv(self, x, calibration):
         x=np.squeeze(x)

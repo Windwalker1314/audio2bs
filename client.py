@@ -23,7 +23,7 @@ async def auth_system(websocket):
         
 async def clientSend(websocket):
     while True:
-        input_text = input("Enter json path:")
+        input_text = "example_short.json"#input("Enter json path:")
         """
         输入example.json得到结果
         """
@@ -40,12 +40,12 @@ async def clientSend(websocket):
             await websocket.send(data_send)  # 发送json object
             result = await websocket.recv()
             result = json.loads(result)
-            print("Jawopen:", np.array(result["result"]).shape, 
+            """print("Jawopen:", np.array(result["result"]).shape, 
                   "bs_name:",np.array(result["bs_name"]).shape,
                   "status",result["status"],
-                  "message",result["message"])
+                  "message",result["message"])"""
             t2 = time.time()
-            print("Time:",int(round((t2-t1)*1000)),"ms")
+            print("Inference Time:",int(round((t2-t1)*1000)),"ms")
             continue
         # 输入exit 断开链接
         elif input_text == "exit":

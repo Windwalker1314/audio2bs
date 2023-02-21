@@ -35,11 +35,10 @@ async def check_permit(websocket):
 #   "status":[]              # 401:给的数据有问题， 501：服务器推理错误， 200:成功
 #   "message": ""            # 如果成功就输出"Success",否则输出错误log
 # }
-async def serverRecv(websocket, model):
+async def serverRecv(websocket):
     while True:
-        
         data = await websocket.recv()
-        t1 = time.time()
+        t1 = time.perf_counter()
         message = ""
         audio = None
         status = 401
@@ -55,20 +54,20 @@ async def serverRecv(websocket, model):
             message = "Json Key Error: " + str(e)
         except Exception as e:
             message = str(type(e))+ str(e)
-        t2 = time.time()
+        t2 = time.perf_counter()
         if audio is not None:
             try:
-                result = model.inference(audio, rate).squeeze().tolist()
+                result = my_model.inference(audio, rate).squeeze().tolist()
                 message = "Inference Success"
             except Exception as e:
                 message = "Model Inference Failure "+str(type(e)) + str(e)
                 status = 501
         else:
             result = []
-        t3 = time.time()
-        out_data = json.dumps({"result": result, "bs_name":model.MOUTH_BS, "status":status,"message":message},ensure_ascii=False).encode('UTF-8')
+        t3 = time.perf_counter()
+        out_data = json.dumps({"result": result, "bs_name":my_model.MOUTH_BS, "status":status,"message":message},ensure_ascii=False).encode('UTF-8')
         await websocket.send(out_data)
-        t4 = time.time()
+        t4 = time.perf_counter()
         
         print("解码加载数据:", int(round((t2-t1)*1000)), "ms")
         print("模型推理时间:", int(round((t3-t2)*1000)), "ms")
@@ -112,11 +111,13 @@ def init():
     args = get_train_args(args)
     args = get_server_args(args)
     base_model_path = args.base_model_path
-    model_path = os.path.join(args.model_path,args.model_name+".pth")
+    model_path = os.path.join(args.model_path,args.model_name+".pt")
     device = args.device
     # Load model 
     global my_model 
     my_model =  Audio2BS(base_model_path, model_path, device)
+    test1 = np.zeros((16000),dtype=np.int16)
+    my_model.inference(test1,16000)
     server = websockets.serve(serverRun, args.IP, args.port)
     return server
 
@@ -124,7 +125,7 @@ def init():
 async def serverRun(websocket, path):
     await check_permit(websocket)
     try:
-        await serverRecv(websocket, my_model)
+        await serverRecv(websocket)
     except websockets.exceptions.ConnectionClosedOK as e:
         print("Client exit!")
     except websockets.exceptions.ConnectionClosedError as e:
