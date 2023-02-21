@@ -4,10 +4,11 @@ from scipy.io import wavfile
 import json
 import numpy as np
 IP_ADDR = "localhost"
-IP_PORT = "7890"
+IP_PORT = "2890"
 
 
 count = 0
+
 
 # 向服务器端认证，用户名密码通过才能退出循环 直接输入  admin:123456
 async def auth_system(websocket): 
@@ -21,21 +22,21 @@ async def auth_system(websocket):
 # 向服务器端发送消息
 async def clientSend(websocket):
     while True:
-        input_text = input("Enter wav path:")
+        input_text = input("Enter json path:")
         """
         下面这段需要替换，持续输入音频，以json的方式发送到server，再接受预测结果
         """
-        if input_text.endswith(".wav"):
-            #sig, rate = librosa.load(input_text, sr=16000)
-            rate, sig = wavfile.read(input_text)
-            n_chunks = int(len(sig)//rate)
-            for i in range(n_chunks):
-                sig_section=sig[i*rate:min((i+1)*rate, len(sig))].tolist()
-                data = json.dumps({"wav": sig_section, "rate": rate},ensure_ascii=False).encode('utf-8')
-                await websocket.send(data)
-                result = await websocket.recv()
-                result = json.loads(result)
-                print("Jawopen:", np.array(result["result"])[:,3], "bs_name:",np.array(result["bs_name"]).shape)
+        if input_text.endswith(".json"):
+            # load json file
+            with open(input_text,"r") as f:
+                data = json.load(f)  # data is a python dictionary
+            data_send = json.dumps(data) # datasend is a json object
+            await websocket.send(data_send)  # 发送json object
+            result = await websocket.recv()
+            result = json.loads(result)
+            print("Jawopen:", np.array(result["result"])[:,3], 
+                  "bs_name:",np.array(result["bs_name"]).shape,
+                  "status",result["status"])
             continue
         elif input_text == "exit":
             print(f'"exit", bye!')

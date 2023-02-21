@@ -54,7 +54,8 @@ def wss_tts(url, key, secret, txt, return_mode, speed, energy, sample_rate, audi
             res = json.loads(res)
             status = res['status']
             audio = base64.b64decode(res['audio'])
-            
+            with open ("example.json",'w') as f:
+                json.dump({"wav":res,"rate":22050,"return_mode":"sentence"},f)
             text_raw = res['text_raw']
             text_normalized = res['text_normalized']
             print("text_normalized:", text_normalized)
@@ -97,7 +98,7 @@ if __name__ == '__main__':
     speed = 1.0##声音的快慢 支持0.5到1.0， 默认1.0
     energy = 1.0##声音的音量大小 支持0.5到1.0， 默认1.0
     sample_rate = 22050###声音的采样率，支持8000、16000、22050
-    return_mode = 'stream'###返回模式，必填，支持stream、sentence、only_audio
+    return_mode = 'sentence'###返回模式，必填，支持stream、sentence、only_audio
     audio_format = 'pcm'
     bit = 16
     name_save = 'test_audio.pcm'

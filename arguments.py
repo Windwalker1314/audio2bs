@@ -17,5 +17,5 @@ def get_train_args(args):
 
 def get_server_args(args):
     args.IP = "127.0.0.1"
-    args.port = "7890"
+    args.port = "2890"
     return args

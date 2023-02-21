@@ -14,7 +14,7 @@ with open("tts.txt","w") as f:
 
 arr = np.vectorize(np.binary_repr)(a, width=16)
 print(arr)
-"""
+""""""
 import wave
 def pcm2wav(pcm_file, wav_file, channels=1, bits=16, sample_rate=16000):
     pcmf = open(pcm_file, 'rb')
@@ -43,4 +43,19 @@ def load_pcm(pcm_file):
     print(t2)
 
 #pcm2wav("test_audio.pcm","test_audio.wav")
-load_pcm("test_audio.pcm")
+load_pcm("test_audio.pcm")"""
+import json
+import base64
+try:
+    a = json.loads("{\"123\":\"234\",\"234\":\"456\"}")
+    #base64.b64decode(b"\ss")
+    a["11"]
+except json.decoder.JSONDecodeError as e:
+    if hasattr(e, 'message'):
+        print(e.message)
+    else:
+        print(e)
+except KeyError as e:
+    print(e)
+except Exception as e:
+    print(str(type(e)),e)

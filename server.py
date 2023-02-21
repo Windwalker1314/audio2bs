@@ -5,7 +5,7 @@ from arguments import get_common_args,get_train_args,get_server_args
 from audio2bs import Audio2BS
 import os
 import base64
-
+import numpy as np
 
 # 检测客户端权限，用户名密码通过才能退出循环
 async def check_permit(websocket):
@@ -24,18 +24,25 @@ async def check_permit(websocket):
 async def serverRecv(websocket, model):
     while True:
         data = await websocket.recv()
-        data = json.loads(data)
+        message = ""
+        audio = None
+        status = 0
+        try:
+            data = json.loads(data)
+            audio, rate, status = handel_result(data)
+        except json.decoder.JSONDecodeError as e:
+            message = "Json Decode Error:" + getattr(e, 'message', repr(e))
+        except KeyError as e:
+            message = "Key Error" + str(e)
+        except Exception as e:
+            message = str(type(e)+ str(e))
 
-        
 
-
-        status = data['status']
-        audio = base64.b64decode(data['audio'])
-        text_raw = data['text_raw']
-        text_normalized = data['text_normalized']
-
-        result = model.inference(data["wav"], data["rate"]).squeeze()
-        out_data = json.dumps({"result": result.tolist(), "bs_name":model.MOUTH_BS},ensure_ascii=False).encode('UTF-8')
+        if audio is not None:
+            result = model.inference(audio, rate).squeeze()
+        else:
+            result = []
+        out_data = json.dumps({"result": result.tolist(), "bs_name":model.MOUTH_BS, "status":status,"message":message},ensure_ascii=False).encode('UTF-8')
         await websocket.send(out_data)
 
 def handel_result(data):
@@ -45,8 +52,31 @@ def handel_result(data):
 
     audio = res['audio']
 
+    if return_mode == "sentence":
+        status = res['status']
+        audio = base64.b64decode(res['audio'])
+        text_normalized = res['text_normalized']
+        print("text_normalized:", text_normalized)
+        audio = np.frombuffer(audio, dtype=np.int16)
+    
+    elif return_mode == 'stream':
+        if isinstance(res, str):
+            status = res['status']
+            text_raw = res['text_raw']
+            text_normalized = res['text_normalized']
+            print("text_normalized", text_normalized)
+            audio=None
+        elif isinstance(res, bytes):
+            audio = np.frombuffer(res, dtype=np.int16)
+            status = None
+    elif return_mode == 'only_audio':
+        if isinstance(res, bytes):
+            audio = np.frombuffer(res, dtype=np.int16)
+            status = None
+        elif isinstance(res, str):
+            status = res["status"]
 
-    return audio, rate
+    return audio, rate, status
 
 def init():
     args = get_common_args()
@@ -64,7 +94,12 @@ def init():
 # 握手并且接收数据
 async def serverRun(websocket, path):
     await check_permit(websocket)
-    await serverRecv(websocket, my_model)
+    try:
+        await serverRecv(websocket, my_model)
+    except websockets.exceptions.ConnectionClosedOK as e:
+        print("Client exit!")
+    except websockets.exceptions.ConnectionClosedError as e:
+        print("Connection closed abnormally: ", str(e.reason))
 
 #main function
 if __name__ == '__main__':
