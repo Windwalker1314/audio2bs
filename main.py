@@ -10,7 +10,8 @@ def infer(args):
     # Load model 
     my_model = Audio2BS(base_model_path, model_path, device, audio_section_length=args.audio_section_length)
     # Load Auido
-    audio, rate = librosa.load("./test_data/tts.wav", sr=args.sampling_rate)
+    audio, rate = librosa.load("./20230220.wav", sr=args.sampling_rate)
+    print(max(audio))
     # Inference
     output = my_model.inference(audio, rate)
     # Convert to CSV

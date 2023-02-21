@@ -82,10 +82,14 @@ class Audio2BS():
         return output_features.transpose(1, 2)
 
     def inference(self, audio, rate):
-        if type(audio[0])==int:
+        if type(audio[0])==np.int16:
             audio = np.array(audio)/32768
+        elif type(audio[0])==np.uint8:
+            audio = np.array(audio).astype(np.int8)/128.0
         elif type(audio[0])==list:
             audio = np.array(audio)[:, 0]
+        elif type(audio[0]==float):
+            audio = np.array(audio)
         else:
             raise TypeError
         audio = resampy.resample(audio.astype(float),rate,16000)

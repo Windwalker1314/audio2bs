@@ -35,7 +35,7 @@ async def clientSend(websocket):
                 await websocket.send(data)
                 result = await websocket.recv()
                 result = json.loads(result)
-                print("output_shape:", np.array(result["result"]).shape, "bs_name:",np.array(result["bs_name"]).shape)
+                print("Jawopen:", np.array(result["result"])[:,3], "bs_name:",np.array(result["bs_name"]).shape)
             continue
         elif input_text == "exit":
             print(f'"exit", bye!')
