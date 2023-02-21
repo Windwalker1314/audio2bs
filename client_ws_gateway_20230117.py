@@ -58,7 +58,7 @@ def wss_tts(url, key, secret, txt, return_mode, speed, energy, sample_rate, audi
                 json.dump({"wav":res,"rate":22050,"return_mode":"sentence"},f)
             text_raw = res['text_raw']
             text_normalized = res['text_normalized']
-            print("text_normalized:", text_normalized)
+            print("text_normalized:", text_normalized,status)
             fw.write(audio)
             if status == 1:
                 print("完成")
@@ -69,7 +69,7 @@ def wss_tts(url, key, secret, txt, return_mode, speed, energy, sample_rate, audi
                 status = res['status']
                 text_raw = res['text_raw']
                 text_normalized = res['text_normalized']
-                print("text_normalized:", text_normalized)
+                print("text_normalized:", text_normalized,status)
                 if status == 1:
                     finish = True
             elif isinstance(res, bytes):
@@ -79,6 +79,7 @@ def wss_tts(url, key, secret, txt, return_mode, speed, energy, sample_rate, audi
                     print("完成")
                     break
         elif return_mode == 'only_audio':
+            print(status)
             if isinstance(res, bytes):
                 fw.write(res)
             elif isinstance(res, str):
@@ -98,7 +99,7 @@ if __name__ == '__main__':
     speed = 1.0##声音的快慢 支持0.5到1.0， 默认1.0
     energy = 1.0##声音的音量大小 支持0.5到1.0， 默认1.0
     sample_rate = 22050###声音的采样率，支持8000、16000、22050
-    return_mode = 'sentence'###返回模式，必填，支持stream、sentence、only_audio
+    return_mode = 'stream'###返回模式，必填，支持stream、sentence、only_audio
     audio_format = 'pcm'
     bit = 16
     name_save = 'test_audio.pcm'

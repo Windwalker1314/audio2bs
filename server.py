@@ -7,7 +7,7 @@ import os
 import base64
 import numpy as np
 
-# 检测客户端权限，用户名密码通过才能退出循环
+# 检测客户端权限，用户名密码通过才能退出循环 
 async def check_permit(websocket):
     while True:
         recv_str = await websocket.recv()
@@ -21,60 +21,77 @@ async def check_permit(websocket):
             await websocket.send(response_str)
 
 # 接收从客户端发来的消息并处理，告知客户端
+#输入是json文件，
+# {"wav": {"status":..., "audio":..., "text_normalized":..., "text_raw":...}          # 从client_ws_gateway得到的raw json file
+#  "rate": 22050,                    #音频采样率设置
+#  "return_mode": "sentence"         #建议使用这个mode, 其它的还未测试
+# }
+
+# 输出是json 文件,
+# {
+#   "result":[[...],[...]]   # blendshape输出，float，shape(number_of_frames, 31)    
+#   "bs_name":[]             # blendshape名称，str, shape(31)
+#   "status":[]              # 401:给的数据有问题， 501：服务器推理错误， 200:成功
+#   "message": ""            # 如果成功就输出"Success",否则输出错误log
+# }
 async def serverRecv(websocket, model):
     while True:
         data = await websocket.recv()
         message = ""
         audio = None
-        status = 0
+        status = 401
         try:
             data = json.loads(data)
-            audio, rate, status = handel_result(data)
+            if "text" in data.keys():
+                message = data["text"]
+            else:
+                audio, rate, status = handel_result(data)
         except json.decoder.JSONDecodeError as e:
             message = "Json Decode Error:" + getattr(e, 'message', repr(e))
         except KeyError as e:
-            message = "Key Error" + str(e)
+            message = "Json Key Error: " + str(e)
         except Exception as e:
-            message = str(type(e)+ str(e))
-
+            message = str(type(e))+ str(e)
 
         if audio is not None:
-            result = model.inference(audio, rate).squeeze()
+            try:
+                result = model.inference(audio, rate).squeeze().tolist()
+                message = "Inference Success"
+            except Exception as e:
+                message = "Model Inference Failure "+str(type(e)) + str(e)
+                status = 501
         else:
             result = []
-        out_data = json.dumps({"result": result.tolist(), "bs_name":model.MOUTH_BS, "status":status,"message":message},ensure_ascii=False).encode('UTF-8')
+        out_data = json.dumps({"result": result, "bs_name":model.MOUTH_BS, "status":status,"message":message},ensure_ascii=False).encode('UTF-8')
         await websocket.send(out_data)
 
 def handel_result(data):
     res = data["wav"]
     rate = data["rate"]
     return_mode = data["return_mode"]
-
     audio = res['audio']
-
+    status = 200
     if return_mode == "sentence":
-        status = res['status']
         audio = base64.b64decode(res['audio'])
         text_normalized = res['text_normalized']
         print("text_normalized:", text_normalized)
         audio = np.frombuffer(audio, dtype=np.int16)
-    
+        status += res["status"]
     elif return_mode == 'stream':
         if isinstance(res, str):
-            status = res['status']
-            text_raw = res['text_raw']
+            status += res['status']
             text_normalized = res['text_normalized']
             print("text_normalized", text_normalized)
             audio=None
         elif isinstance(res, bytes):
             audio = np.frombuffer(res, dtype=np.int16)
-            status = None
     elif return_mode == 'only_audio':
         if isinstance(res, bytes):
             audio = np.frombuffer(res, dtype=np.int16)
-            status = None
         elif isinstance(res, str):
-            status = res["status"]
+            status += res["status"]
+    if status == 617:
+        status = 401
 
     return audio, rate, status
 

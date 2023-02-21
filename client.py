@@ -24,7 +24,7 @@ async def clientSend(websocket):
     while True:
         input_text = input("Enter json path:")
         """
-        下面这段需要替换，持续输入音频，以json的方式发送到server，再接受预测结果
+        输入example.json得到结果
         """
         if input_text.endswith(".json"):
             # load json file
@@ -38,12 +38,15 @@ async def clientSend(websocket):
                   "bs_name:",np.array(result["bs_name"]).shape,
                   "status",result["status"])
             continue
+        # 输入exit 断开链接
         elif input_text == "exit":
             print(f'"exit", bye!')
             await websocket.close(reason="exit")
             return False
+        # 输入其它的话，echo back
         else:
-            await websocket.send(input_text)
+            data_send = json.dumps({"text":input_text},ensure_ascii=False).encode("UTF-8")
+            await websocket.send(data_send)
             recv_text = await websocket.recv()
             print(f"{recv_text}")
 
@@ -57,7 +60,8 @@ async def clientRun():
             async with websockets.connect("ws://" + ipaddress) as websocket:
                 await auth_system(websocket)
                 #await init_check(websocket)
-                await clientSend(websocket)
+                if False == await clientSend(websocket):
+                    break
         except ConnectionRefusedError as e:
             print(e)
             global count
