@@ -4,6 +4,7 @@ import websockets
 from arguments import get_common_args,get_train_args,get_server_args
 from audio2bs import Audio2BS
 import os
+import base64
 
 
 # 检测客户端权限，用户名密码通过才能退出循环
@@ -24,9 +25,28 @@ async def serverRecv(websocket, model):
     while True:
         data = await websocket.recv()
         data = json.loads(data)
+
+        
+
+
+        status = data['status']
+        audio = base64.b64decode(data['audio'])
+        text_raw = data['text_raw']
+        text_normalized = data['text_normalized']
+
         result = model.inference(data["wav"], data["rate"]).squeeze()
         out_data = json.dumps({"result": result.tolist(), "bs_name":model.MOUTH_BS},ensure_ascii=False).encode('UTF-8')
         await websocket.send(out_data)
+
+def handel_result(data):
+    res = data["wav"]
+    rate = data["rate"]
+    return_mode = data["return_mode"]
+
+    audio = res['audio']
+
+
+    return audio, rate
 
 def init():
     args = get_common_args()

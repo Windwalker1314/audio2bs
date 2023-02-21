@@ -37,10 +37,9 @@ import time
 def load_pcm(pcm_file):
     t1 = time.time()
     b = np.fromfile(pcm_file,dtype=np.int16)
-    print(b[0])
     t2 = time.time()
     print(t1)
-
+    print(len(b))
     print(t2)
 
 #pcm2wav("test_audio.pcm","test_audio.wav")
