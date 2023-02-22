@@ -5,6 +5,20 @@ import math
 import random
 from torch import Tensor
 
+class GLU(nn.Module):
+    """
+    The gating mechanism is called Gated Linear Units (GLU), which was first introduced for natural language processing
+    in the paper “Language Modeling with Gated Convolutional Networks”
+    """
+    def __init__(self, dim: int) -> None:
+        super(GLU, self).__init__()
+        self.dim = dim
+
+    def forward(self, inputs: Tensor) -> Tensor:
+        outputs, gate = inputs.chunk(2, dim=self.dim)
+        return outputs * gate.sigmoid()
+
+
 class Swish(nn.Module):
     """
     Swish is a smooth, non-monotonic function that consistently matches or outperforms ReLU on deep networks applied
@@ -225,7 +239,10 @@ class Transformer(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
         self.PE = PositionalEncoding(self.hidden_layer_size, max_seq_len=max_seq_len)
 
+        
+
         self.linear = nn.Sequential(
+            
             nn.Linear(hidden_layer_size, output_size),
             nn.ReLU(True)
         )
@@ -258,13 +275,13 @@ class Conformer(nn.Module):
         self.hidden_layer_size = hidden_layer_size
         self.max_seq_len = max_seq_len
 
-        #self.layernorm = nn.LayerNorm(input_size)
+        self.layernorm = nn.LayerNorm(input_size)
         self.conv1 = nn.Sequential(
             nn.Conv1d(in_channels=input_size, out_channels=256, kernel_size=3, padding="same"),
             nn.ReLU(True),
             nn.Dropout(p=dropout_rate),
             nn.Conv1d(in_channels=256, out_channels=128, kernel_size=3, padding="same"),
-            nn.ReLU(True),#Swish(),
+            Swish(),
             nn.Dropout(p=dropout_rate)
         )
 
@@ -272,10 +289,12 @@ class Conformer(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
         self.PE = PositionalEncoding(self.hidden_layer_size, max_seq_len=max_seq_len)
 
+
+        self.rnn = nn.GRU(input_size=hidden_layer_size, hidden_size=hidden_layer_size//2, num_layers=1, batch_first=True),
         self.linear = nn.Sequential(
-            nn.Linear(hidden_layer_size, output_size),
+            nn.Linear(hidden_layer_size//2, output_size),
             nn.ReLU(True),
-            #nn.Dropout(p=dropout_rate)
+            nn.Dropout(p=dropout_rate)
         )
 
         self.memory = None
@@ -288,12 +307,13 @@ class Conformer(nn.Module):
                 self.memory = self.memory[:,-self.max_seq_len:,:]
         else:
             self.memory = audio
-        #x = self.layernorm(self.memory)
+        x = self.layernorm(self.memory)
         x = self.memory.permute(0,2,1)
         x = self.conv1(x)
         x = x.permute(0,2,1)
         x = self.PE(x)
         x = self.transformer_encoder(x)
+        x, _ = self.rnn(x)
         x = self.linear(x)
         return x[:,-audio.shape[1]:,:]
     
