@@ -36,6 +36,16 @@ async def check_permit(websocket):
 #   "message": ""            # 如果成功就输出"Success",否则输出错误log
 # }
 async def serverRecv(websocket):
+    base_model_path = args.base_model_path
+    model_path = os.path.join(args.model_path,args.model_name+".pt")
+    device = args.device
+    # Load model
+    my_model =  Audio2BS(base_model_path, model_path, device)
+    test1 = np.zeros((16000),dtype=np.int16)
+    result = my_model.inference(test1,16000)
+
+    start_data = "Initialization Completed"
+    await websocket.send(start_data)
     while True:
         data = await websocket.recv()
         t1 = time.perf_counter()
@@ -107,23 +117,19 @@ def handel_result(data):
     return audio, rate, status
 
 def init():
+    global args
     args = get_common_args()
     args = get_train_args(args)
     args = get_server_args(args)
-    base_model_path = args.base_model_path
-    model_path = os.path.join(args.model_path,args.model_name+".pt")
-    device = args.device
-    # Load model 
-    global my_model 
-    my_model =  Audio2BS(base_model_path, model_path, device)
-    test1 = np.zeros((16000),dtype=np.int16)
-    my_model.inference(test1,16000)
-    server = websockets.serve(serverRun, args.IP, args.port)
+    
+    server = websockets.serve(serverRun, args.IP, args.port, ping_interval=60, ping_timeout=60, close_timeout=1)
     return server
 
-# 握手并且接收数据
+
 async def serverRun(websocket, path):
+    # 握手并且接收数据
     await check_permit(websocket)
+    # 主循环 接受发送数据
     try:
         await serverRecv(websocket)
     except websockets.exceptions.ConnectionClosedOK as e:
@@ -135,7 +141,6 @@ async def serverRun(websocket, path):
 if __name__ == '__main__':
     print("========Server main begin==========")
     server = init()
-    print("======Initialization completed======")
-    
+    print("========Init configuration==========")
     asyncio.get_event_loop().run_until_complete(server)
     asyncio.get_event_loop().run_forever()

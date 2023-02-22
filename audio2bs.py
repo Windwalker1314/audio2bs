@@ -101,17 +101,12 @@ class Audio2BS():
         audio = self.processor(audio, return_tensors="pt", sampling_rate=16000).input_values
         if audio.shape[1]<32000:
             x = torch.FloatTensor(audio).to(dtype=torch.float32, device=self.device)
-            t1 = time.perf_counter()
             with torch.no_grad():
                 last_h_state = self.base_model(x).last_hidden_state
-            t2 = time.perf_counter()
             x = self.linear_interpolation(last_h_state, input_fps=self.fps, output_fps=60)
             with torch.no_grad():
                 output = self.model(x)
                 output = output.detach().cpu().numpy()
-            t3 = time.perf_counter()
-            #del last_h_state
-            print("LSTM",int(round((t3-t2)*1000)), "Hubert",int(round((t2-t1)*1000)))
             torch.cuda.empty_cache()
             return output
         chunks = torch.split(audio, self.audio_section_length*rate, dim=1)
