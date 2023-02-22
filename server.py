@@ -60,14 +60,7 @@ async def serverRecv(websocket, model):
         status = 401
         try:
             data = json.loads(data)
-            if "text" in data.keys():
-                text_received = data["text"]
-                if text_received == "reset model":
-                    model.reset_hidden_state()
-                    message = "Model have been reset"
-                    status = 200
-            else:
-                audio, rate, status = handel_result(data)
+            audio, rate, status = handel_result(data)
         except json.decoder.JSONDecodeError as e:
             message = "Json Decode Error:" + getattr(e, 'message', repr(e))
         except KeyError as e:
@@ -77,6 +70,8 @@ async def serverRecv(websocket, model):
         t2 = time.perf_counter()
         if audio is not None:
             try:
+                if status == 201:
+                    model.reset_hidden_state()
                 result = model.inference(audio, rate).squeeze().tolist()
                 message = "Inference Success"
             except Exception as e:
@@ -95,7 +90,7 @@ async def serverRecv(websocket, model):
         print("发送数据:", int(round((t4-t3)*1000)), "ms")
 def handel_result(data):
     res = data["wav"]
-    if isinstance(res,str):
+    if isinstance(res, str):
         res = json.loads(res)
     rate = data["rate"]
     return_mode = data["return_mode"]
@@ -132,7 +127,7 @@ def init():
     args = get_train_args(args)
     args = get_server_args(args)
     
-    server = websockets.serve(serverRun, args.IP, args.port, ping_interval=60, ping_timeout=60, close_timeout=1)
+    server = websockets.serve(serverRun, args.IP, args.port, ping_interval=None, ping_timeout=None, close_timeout=1)
     return server
 
 

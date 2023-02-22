@@ -1,11 +1,8 @@
 import asyncio
 import websockets
-from scipy.io import wavfile
 import json
 import numpy as np
-IP_ADDR = "localhost"
-IP_PORT = "2890"
-import time
+from arguments import get_common_args,get_train_args,get_server_args
 
 count = 0
 
@@ -13,7 +10,7 @@ count = 0
 # 向服务器端认证，用户名密码通过才能退出循环 直接输入  admin:123456
 async def auth_system(websocket): 
     while True:
-        cred_text = input("please enter your username and password: ")
+        cred_text = "admin:123456"#input("please enter your username and password: ")
         await websocket.send(cred_text)
         response_str = await websocket.recv()
         if "congratulation" in response_str:
@@ -30,36 +27,35 @@ async def check_init_model(websocket):
 async def clientSend(websocket):
     while True:
         try:
-            input_text = "example_short.json"
-            asyncio.sleep(3)
+            input_text = input("Enter json or txt path:")
             if input_text.endswith(".json"):
                 # load json file
                 with open(input_text,"r") as f:
-                    data = json.load(f)  # data is a python dictionary
-                data_send = json.dumps(data) # datasend is a json object
+                    data = json.load(f)      # 将json文件读取为python dictionary
+                data_send = json.dumps(data,ensure_ascii=False).encode("UTF-8") # 将python dictionary转为json object
 
-                await websocket.send(data_send)  # 发送json object
+                # 发送接受数据
+                await websocket.send(data_send)
                 result = await websocket.recv()
                 result = json.loads(result)
-                print("Result:", np.array(result["result"]).shape, 
+                print("result:", np.array(result["result"]).shape, 
                     "bs_name:",np.array(result["bs_name"]).shape,
                     "status",result["status"],
                     "message",result["message"])
                 continue
-            # 如果输入时json字符串，就直接 data_send = json.loads(input_txt)
+            # 输入时字符串
             elif input_text.endswith(".txt"):
                 with open(input_text,"r") as f:
-                    data = f.readlines()
-                data = "".join(data)
-                data_send = json.loads(data)
+                    data = json.loads(f.read().strip())  # json loads: 字符串转成dictionary
+                data_send = json.dumps(data,ensure_ascii=False).encode("UTF-8")   # json dumps: dictionary转成json object
 
                 await websocket.send(data_send)  # 发送json object
                 result = await websocket.recv()
                 result = json.loads(result)
-                print("Jawopen:", np.array(result["result"]).shape, 
+                print("result:", np.array(result["result"]).shape, 
                     "bs_name:",np.array(result["bs_name"]).shape,
-                    "status",result["status"],
-                    "message",result["message"])
+                    "status:",result["status"],
+                    "message:",result["message"])
                 continue
             # 输入exit 断开链接
             elif input_text == "exit":
@@ -78,7 +74,7 @@ async def clientSend(websocket):
  
 # 进行websocket连接
 async def clientRun():
-    ipaddress = IP_ADDR + ":" + IP_PORT
+    ipaddress = args.IP + ":" + args.port
     while True:
         try:
             async with websockets.connect("ws://" + ipaddress, ping_interval=None, ping_timeout=None) as websocket:
@@ -100,8 +96,14 @@ async def clientRun():
         except websockets.exceptions.ConnectionClosedError as e:
             print("Timeout, Reconnecting...")
 
- 
+def init():
+    global args
+    args = get_common_args()
+    args = get_train_args(args)
+    args = get_server_args(args)
+
 #main function
 if __name__ == '__main__':
     print("======client main begin======")
+    init()
     asyncio.get_event_loop().run_until_complete(clientRun())

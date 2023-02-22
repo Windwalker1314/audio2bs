@@ -59,7 +59,6 @@ class Audio2BS():
     def load_model(self, model_path:str):
         if model_path.endswith(".pth"):
             model = LSTM()
-            
             checkpoint_path = model_path
             checkpoint = torch.load(checkpoint_path)
             model.load_state_dict(checkpoint['model_state_dict'])
