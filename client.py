@@ -19,18 +19,19 @@ async def auth_system(websocket):
         if "congratulation" in response_str:
             return True
  
-# 向服务器端发送消息
-        
+async def check_init_model(websocket):
+    while True:
+        recv_text = await websocket.recv()
+        print(f"{recv_text}")
+        if recv_text == "Initialization Completed":
+            return True
+
+# 向服务器端发送消息   
 async def clientSend(websocket):
-    recv_text = await websocket.recv()
-    print(f"{recv_text}")
     while True:
         try:
-            input_text = "example_short.json"#input("Enter json path:")
-            #input_text = input("Enter json/txt path:")
-            """
-            输入example.json得到结果
-            """
+            input_text = "example_short.json"
+            asyncio.sleep(3)
             if input_text.endswith(".json"):
                 # load json file
                 with open(input_text,"r") as f:
@@ -40,7 +41,7 @@ async def clientSend(websocket):
                 await websocket.send(data_send)  # 发送json object
                 result = await websocket.recv()
                 result = json.loads(result)
-                print("Jawopen:", np.array(result["result"]).shape, 
+                print("Result:", np.array(result["result"]).shape, 
                     "bs_name:",np.array(result["bs_name"]).shape,
                     "status",result["status"],
                     "message",result["message"])
@@ -82,7 +83,7 @@ async def clientRun():
         try:
             async with websockets.connect("ws://" + ipaddress, ping_interval=None, ping_timeout=None) as websocket:
                 await auth_system(websocket)
-                
+                await check_init_model(websocket)
                 
                 if False == await clientSend(websocket):
                     # 断开连接

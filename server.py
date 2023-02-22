@@ -35,17 +35,23 @@ async def check_permit(websocket):
 #   "status":[]              # 401:给的数据有问题， 501：服务器推理错误， 200:成功
 #   "message": ""            # 如果成功就输出"Success",否则输出错误log
 # }
-async def serverRecv(websocket):
+
+async def init_model(websocket):
+    start_data = "Initializing ..."
+    await websocket.send(start_data)
     base_model_path = args.base_model_path
     model_path = os.path.join(args.model_path,args.model_name+".pt")
     device = args.device
     # Load model
     my_model =  Audio2BS(base_model_path, model_path, device)
     test1 = np.zeros((16000),dtype=np.int16)
-    result = my_model.inference(test1,16000)
+    my_model.inference(test1,16000)
 
     start_data = "Initialization Completed"
     await websocket.send(start_data)
+    return my_model
+
+async def serverRecv(websocket, model):
     while True:
         data = await websocket.recv()
         t1 = time.perf_counter()
@@ -55,7 +61,11 @@ async def serverRecv(websocket):
         try:
             data = json.loads(data)
             if "text" in data.keys():
-                message = data["text"]
+                text_received = data["text"]
+                if text_received == "reset model":
+                    model.reset_hidden_state()
+                    message = "Model have been reset"
+                    status = 200
             else:
                 audio, rate, status = handel_result(data)
         except json.decoder.JSONDecodeError as e:
@@ -67,22 +77,22 @@ async def serverRecv(websocket):
         t2 = time.perf_counter()
         if audio is not None:
             try:
-                result = my_model.inference(audio, rate).squeeze().tolist()
+                result = model.inference(audio, rate).squeeze().tolist()
                 message = "Inference Success"
             except Exception as e:
                 message = "Model Inference Failure "+str(type(e)) + str(e)
                 status = 501
         else:
-            result = []
+            result = [[]]
         t3 = time.perf_counter()
-        out_data = json.dumps({"result": result, "bs_name":my_model.MOUTH_BS, "status":status,"message":message},ensure_ascii=False).encode('UTF-8')
+        out_data = json.dumps({"result": result, "bs_name":model.MOUTH_BS, "status":status,"message":message},ensure_ascii=False).encode('UTF-8')
         await websocket.send(out_data)
+        
         t4 = time.perf_counter()
         
         print("解码加载数据:", int(round((t2-t1)*1000)), "ms")
         print("模型推理时间:", int(round((t3-t2)*1000)), "ms")
         print("发送数据:", int(round((t4-t3)*1000)), "ms")
-
 def handel_result(data):
     res = data["wav"]
     if isinstance(res,str):
@@ -129,9 +139,11 @@ def init():
 async def serverRun(websocket, path):
     # 握手并且接收数据
     await check_permit(websocket)
+    # 初始化模型
+    model = await init_model(websocket)
     # 主循环 接受发送数据
     try:
-        await serverRecv(websocket)
+        await serverRecv(websocket, model)
     except websockets.exceptions.ConnectionClosedOK as e:
         print("Client exit!")
     except websockets.exceptions.ConnectionClosedError as e:
