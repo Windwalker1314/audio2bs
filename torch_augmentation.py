@@ -7,9 +7,9 @@ def augmentation(audio_samples,sample_rate):
             Gain(
                 min_gain_in_db = -1.0,
                 max_gain_in_db = 8.0,
-                p = 0.6,
+                p = 0.8,
             ),
-            PitchShift(sample_rate=sample_rate)
+            PitchShift(sample_rate=sample_rate,p=0.8)
         ]
     )
     

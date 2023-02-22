@@ -41,7 +41,14 @@ def runner(args):
     # torch.Size([1, 1, 187360]) torch.Size([1, 700, 31])
 
 def infer(args):
-    model = LSTM()
+    if "LSTM" in args.model_name:
+        model = LSTM()
+    elif "Faceformer" in args.model_name:
+        model = Faceformer(args)
+    elif "Transformer" in args.model_name:
+        model = Transformer()
+    elif "Conformer" in args.model_name:
+        model = Conformer()
     model.to(args.device)
     test_data = os.listdir(args.test_data_path)
     wavs = []
@@ -64,8 +71,8 @@ def test_model(args):
 if __name__=="__main__":
     args = get_common_args()
     args = get_train_args(args)
-    runner(args)
-    #infer(args)
+    #runner(args)
+    infer(args)
     #test_model(args)
 
 

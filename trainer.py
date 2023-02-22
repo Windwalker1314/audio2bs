@@ -103,10 +103,22 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                 if args.augmentation:
                     x_train,y_train = speed_changing(x_train,y_train)
                     x_train = augmentation(x_train, args.sampling_rate)
-                xs = torch.split(x_train, args.sampling_rate*args.max_audio_length, dim=2)
-                ys = torch.split(y_train, 60*args.max_audio_length, dim=1)
+                split_size_x = int(args.sampling_rate*args.max_audio_length)
+                split_size_y = int(60*args.max_audio_length)
+                xs = torch.split(x_train, split_size_x, dim=2)
+                ys = torch.split(y_train, split_size_y, dim=1)
                 outputs = []
                 for inputs,labels in zip(xs,ys):
+                    """i_shape = inputs.shape  # 1, 1, audio_length
+                    l_shape = labels.shape  # 1, csv_len, 31
+                    if i_shape[2]<split_size_x or l_shape[1]<split_size_y:
+                        padded_x = torch.zeros((i_shape[0],i_shape[1],split_size_x))
+                        padded_x[:,:,:i_shape[2]] = inputs
+                        padded_y = torch.zeros((l_shape[0], split_size_y, 31))
+                        padded_y[:,:labels.shape[1],:] = labels
+                        inputs = padded_x
+                        labels = padded_y
+                    assert(inputs.shape[-1]==split_size_x and labels.shape[1]==split_size_y)"""
                     inputs = inputs.to(device=device,dtype=torch.float32)
                     labels = labels.to(device=device,dtype=torch.float32)
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
@@ -142,10 +154,23 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
             valid_loss = []
             for j, (x_valid, y_valid) in enumerate(dataset["Valid"]):
                 model.reset_hidden_cell()
-                xs = torch.split(x_valid, args.sampling_rate*args.max_audio_length, dim=2)
-                ys = torch.split(y_valid, 60*args.max_audio_length, dim=1)
+                split_size_x = int(args.sampling_rate*args.max_audio_length)
+                split_size_y = int(60*args.max_audio_length)
+                xs = torch.split(x_valid, split_size_x, dim=2)
+                ys = torch.split(y_valid, split_size_y, dim=1)
                 outputs = []
                 for inputs,labels in zip(xs,ys):
+                    """i_shape = inputs.shape  # 1, 1, audio_length
+                    l_shape = labels.shape  # 1, csv_len, 31
+                    if i_shape[2]<split_size_x or l_shape[1]<split_size_y:
+                        padded_x = torch.zeros((i_shape[0],i_shape[1],split_size_x))
+                        padded_x[:,:,:i_shape[2]] = inputs
+                        padded_y = torch.zeros((l_shape[0], split_size_y, 31))
+                        padded_y[:,:labels.shape[1],:] = labels
+                        inputs = padded_x
+                        labels = padded_y
+                    assert(inputs.shape[-1]==split_size_x and labels.shape[1]==split_size_y)"""
+
                     inputs = inputs.to(device=device,dtype=torch.float32)
                     labels = labels.to(device=device,dtype=torch.float32)
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
@@ -220,7 +245,8 @@ def inference(args, model, checkpoint_path, wav_lst, calibration):
         sig, rate = librosa.load(wav_path, sr=args.sampling_rate)
         audio = processor(sig, return_tensors="pt", sampling_rate=rate).input_values # (1, audiolength)
         
-        chunks = torch.split(audio,args.audio_section_length*args.sampling_rate, dim=1)
+        split_size = args.audio_section_length*args.sampling_rate
+        chunks = torch.split(audio,split_size, dim=1)
         
         output = []
 

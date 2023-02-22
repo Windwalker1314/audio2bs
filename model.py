@@ -3,6 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 import random
+from torch import Tensor
+
+class Swish(nn.Module):
+    """
+    Swish is a smooth, non-monotonic function that consistently matches or outperforms ReLU on deep networks applied
+    to a variety of challenging domains such as Image classification and Machine translation.
+    """
+    def __init__(self):
+        super(Swish, self).__init__()
+    
+    def forward(self, inputs: Tensor) -> Tensor:
+        return inputs * inputs.sigmoid()
 
 def init_biased_mask(n_head, max_seq_len, period):
     def get_slopes(n):
@@ -239,20 +251,20 @@ class Transformer(nn.Module):
         self.memory = None
 
 class Conformer(nn.Module):
-    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300, dropout_rate = 0.25):
+    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300, dropout_rate = 0.1):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
         self.hidden_layer_size = hidden_layer_size
         self.max_seq_len = max_seq_len
 
+        #self.layernorm = nn.LayerNorm(input_size)
         self.conv1 = nn.Sequential(
-            #nn.LayerNorm(in_channels=input_size),
             nn.Conv1d(in_channels=input_size, out_channels=256, kernel_size=3, padding="same"),
             nn.ReLU(True),
             nn.Dropout(p=dropout_rate),
             nn.Conv1d(in_channels=256, out_channels=128, kernel_size=3, padding="same"),
-            nn.ReLU(True),
+            nn.ReLU(True),#Swish(),
             nn.Dropout(p=dropout_rate)
         )
 
@@ -262,7 +274,8 @@ class Conformer(nn.Module):
 
         self.linear = nn.Sequential(
             nn.Linear(hidden_layer_size, output_size),
-            nn.ReLU(True)
+            nn.ReLU(True),
+            #nn.Dropout(p=dropout_rate)
         )
 
         self.memory = None
@@ -275,7 +288,7 @@ class Conformer(nn.Module):
                 self.memory = self.memory[:,-self.max_seq_len:,:]
         else:
             self.memory = audio
-        
+        #x = self.layernorm(self.memory)
         x = self.memory.permute(0,2,1)
         x = self.conv1(x)
         x = x.permute(0,2,1)
