@@ -9,6 +9,7 @@ import pandas as pd
 import time
 import os
 from torch_augmentation import augmentation
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 class EarlyStopping():
     def __init__(self, model_name, best_score=-np.Inf, patience=4, verbose=False, delta=0):
@@ -93,6 +94,9 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
     early_stopping = EarlyStopping(model_name=args.model_name, best_score=-current_loss, patience=args.patience)
     
     base_model,fps = load_base_model(args.base_model_path, "Hubert", args.device)
+    """for g in optimizer.param_groups:
+        g['lr'] = args.learning_rate"""
+    scheduler = ReduceLROnPlateau(optimizer, patience=2,mode='min',min_lr=1e-5, factor=0.8)
     for epoch in range(args.epochs):
         with tqdm(total=len(dataset["Train"]) + len(dataset["Valid"])) as t:
             model.train()
@@ -103,36 +107,30 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                 if args.augmentation:
                     x_train,y_train = speed_changing(x_train,y_train)
                     x_train = augmentation(x_train, args.sampling_rate)
-                split_size_x = int(args.sampling_rate*args.max_audio_length)
-                split_size_y = int(60*args.max_audio_length)
+                frac = 1/20
+                max_num_frac = args.max_audio_length*20
+                split_size = random.randint(10, max_num_frac) * frac
+                split_size_x = int(args.sampling_rate * split_size)
+                split_size_y = int(60* split_size)
                 xs = torch.split(x_train, split_size_x, dim=2)
                 ys = torch.split(y_train, split_size_y, dim=1)
                 outputs = []
                 for inputs,labels in zip(xs,ys):
-                    """i_shape = inputs.shape  # 1, 1, audio_length
-                    l_shape = labels.shape  # 1, csv_len, 31
-                    if i_shape[2]<split_size_x or l_shape[1]<split_size_y:
-                        padded_x = torch.zeros((i_shape[0],i_shape[1],split_size_x))
-                        padded_x[:,:,:i_shape[2]] = inputs
-                        padded_y = torch.zeros((l_shape[0], split_size_y, 31))
-                        padded_y[:,:labels.shape[1],:] = labels
-                        inputs = padded_x
-                        labels = padded_y
-                    assert(inputs.shape[-1]==split_size_x and labels.shape[1]==split_size_y)"""
+                    if inputs.shape[2]<1100:
+                        continue
                     inputs = inputs.to(device=device,dtype=torch.float32)
                     labels = labels.to(device=device,dtype=torch.float32)
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
                     # torch.Size([batch，csv_length, feature_dim]) torch.Size([batch，csv_length, bs_dim])
                     assert(labels.shape[0]==args.batch_size and labels.shape[2]==31 and labels.shape[1]==inputs.shape[1])
-                    y_pred = model(inputs)
-                    outputs.append(y_pred)
+                    outputs.append(model(inputs))
                     del inputs
                     del labels
                     torch.cuda.empty_cache()
                 
                 outputs = torch.cat(outputs,dim=1)
                 optimizer.zero_grad()
-                loss = criterion(outputs, y_train.to(device=device,dtype=torch.float32))
+                loss = criterion(outputs, y_train[:,:outputs.shape[1],:].to(device=device,dtype=torch.float32))
                 loss.backward()
                 optimizer.step()
 
@@ -154,34 +152,28 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
             valid_loss = []
             for j, (x_valid, y_valid) in enumerate(dataset["Valid"]):
                 model.reset_hidden_cell()
-                split_size_x = int(args.sampling_rate*args.max_audio_length)
-                split_size_y = int(60*args.max_audio_length)
+                frac = 1/20
+                max_num_frac = args.max_audio_length*20
+                split_size = random.randint(10, max_num_frac) * frac
+                split_size_x = int(args.sampling_rate * split_size)
+                split_size_y = int(60 * split_size)
                 xs = torch.split(x_valid, split_size_x, dim=2)
                 ys = torch.split(y_valid, split_size_y, dim=1)
                 outputs = []
                 for inputs,labels in zip(xs,ys):
-                    """i_shape = inputs.shape  # 1, 1, audio_length
-                    l_shape = labels.shape  # 1, csv_len, 31
-                    if i_shape[2]<split_size_x or l_shape[1]<split_size_y:
-                        padded_x = torch.zeros((i_shape[0],i_shape[1],split_size_x))
-                        padded_x[:,:,:i_shape[2]] = inputs
-                        padded_y = torch.zeros((l_shape[0], split_size_y, 31))
-                        padded_y[:,:labels.shape[1],:] = labels
-                        inputs = padded_x
-                        labels = padded_y
-                    assert(inputs.shape[-1]==split_size_x and labels.shape[1]==split_size_y)"""
-
+                    if inputs.shape[2]<1100:
+                        continue
                     inputs = inputs.to(device=device,dtype=torch.float32)
                     labels = labels.to(device=device,dtype=torch.float32)
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
                     with torch.no_grad():
-                        outputs.append(model(inputs))
+                        outputs.append(torch.clamp(model(inputs),0,1))
 
                     del inputs
                     del labels
                     torch.cuda.empty_cache()
                 outputs = torch.cat(outputs,dim=1)
-                loss = criterion(outputs, y_valid.to(device=device,dtype=torch.float32))
+                loss = criterion(outputs, y_valid[:,:outputs.shape[1],:].to(device=device,dtype=torch.float32))
                 valid_loss.append(loss.cpu().detach().numpy())
 
                 del loss
@@ -193,10 +185,12 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                     t.set_description('Epoch %i validation' % epoch)
                     t.set_postfix(train_loss=np.mean(train_loss), val_loss = np.mean(valid_loss))
                 t.update(1)
-            valid_loss_list.append(np.mean(valid_loss))
+            epoch_val_loss = np.mean(valid_loss)
+            valid_loss_list.append(epoch_val_loss)
             t.set_description('Epoch %i' % epoch)
-            t.set_postfix(train_loss=train_loss_list[-1], val_loss=valid_loss_list[-1])
+            t.set_postfix(train_loss=train_loss_list[-1], val_loss=epoch_val_loss, lr=optimizer.state_dict()['param_groups'][0]['lr'])
             early_stopping(valid_loss_list[-1], model=model, optimizer=optimizer, path=args.model_path)
+            scheduler.step(epoch_val_loss)
             if early_stopping.early_stop:
                 break
     return train_loss_list, valid_loss_list

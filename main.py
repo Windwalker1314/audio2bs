@@ -4,6 +4,7 @@ from trainer import train, inference,test
 import torch.optim as optim
 from model import LSTM, Faceformer, Conformer,Transformer
 import torch.nn as nn
+
 #from transformers import HubertModel
 import os
 import torch
@@ -20,8 +21,9 @@ def runner(args):
         model = Transformer()
     elif "Conformer" in args.model_name:
         model = Conformer()
-    model = model.to(args.device)
+    model.to(args.device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    
     criterion = nn.MSELoss()
     current_loss = 999999
     if args.load_model:
@@ -30,6 +32,7 @@ def runner(args):
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         current_loss = checkpoint['loss']
     criterion.to(args.device)
+    
     train(args, model, dataset,criterion=criterion, optimizer=optimizer, device=args.device, current_loss=current_loss)
 
     """print(torch.cuda.memory_reserved())
@@ -71,8 +74,8 @@ def test_model(args):
 if __name__=="__main__":
     args = get_common_args()
     args = get_train_args(args)
-    #runner(args)
-    infer(args)
+    runner(args)
+    #infer(args)
     #test_model(args)
 
 

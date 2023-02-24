@@ -5,19 +5,6 @@ import math
 import random
 from torch import Tensor
 
-class GLU(nn.Module):
-    """
-    The gating mechanism is called Gated Linear Units (GLU), which was first introduced for natural language processing
-    in the paper “Language Modeling with Gated Convolutional Networks”
-    """
-    def __init__(self, dim: int) -> None:
-        super(GLU, self).__init__()
-        self.dim = dim
-
-    def forward(self, inputs: Tensor) -> Tensor:
-        outputs, gate = inputs.chunk(2, dim=self.dim)
-        return outputs * gate.sigmoid()
-
 
 class Swish(nn.Module):
     """
@@ -94,15 +81,17 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:x.size(0), :]
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=1024, hidden_layer_size=128, output_size=31):
+    def __init__(self, input_size=1024, hidden_layer_size=256, output_size=31):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
         self.hidden_layer_size = hidden_layer_size
         self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers=2, batch_first= True,  dropout=0.5, bidirectional=True)
         self.linear = nn.Sequential(
-            nn.Linear(hidden_layer_size*2, output_size),
-            nn.ReLU(True)
+            nn.Linear(hidden_layer_size*2, 128),
+            nn.ReLU(True),
+            nn.Dropout(0.2),
+            nn.Linear(128,output_size)
         )
         self.hidden_cell = None
 
@@ -222,29 +211,29 @@ print(a(audio1).shape)"""
 
 
 class Transformer(nn.Module):
-    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300):
+    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300,droupout=0.2):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
         self.hidden_layer_size = hidden_layer_size
         self.max_seq_len = max_seq_len
 
-        self.ffn = nn.Sequential(
-            nn.Linear(input_size, hidden_layer_size),
-            nn.Dropout(p=0.2),
-            nn.ReLU(True)
-        )
-
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=n_head, batch_first=True, dropout=0.5)
+        """self.ffc=nn.Sequential(
+            nn.Linear(input_size,hidden_layer_size),
+            nn.ReLU(True),
+            nn.Dropout(droupout),
+        )"""
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=input_size, nhead=n_head, batch_first=True, dropout=droupout,dim_feedforward=2048)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
-        self.PE = PositionalEncoding(self.hidden_layer_size, max_seq_len=max_seq_len)
+        self.PE = PositionalEncoding(input_size, max_seq_len=max_seq_len)
 
         
 
         self.linear = nn.Sequential(
-            
-            nn.Linear(hidden_layer_size, output_size),
-            nn.ReLU(True)
+            nn.Linear(input_size, output_size),
+            nn.ReLU(True),
+            nn.Linear(input_size, output_size),
+            nn.ReLU(True),
         )
 
         self.memory = None
@@ -258,8 +247,7 @@ class Transformer(nn.Module):
         else:
             self.memory = audio
         
-        x = self.ffn(self.memory)
-        x = self.PE(x)
+        x = self.PE(self.memory)
         x = self.transformer_encoder(x)
         x = self.linear(x)
         return x[:,-audio.shape[1]:,:]
@@ -267,8 +255,21 @@ class Transformer(nn.Module):
     def reset_hidden_cell(self):
         self.memory = None
 
+class GLU(nn.Module):
+    """
+    The gating mechanism is called Gated Linear Units (GLU), which was first introduced for natural language processing
+    in the paper “Language Modeling with Gated Convolutional Networks”
+    """
+    def __init__(self, dim: int) -> None:
+        super(GLU, self).__init__()
+        self.dim = dim
+
+    def forward(self, inputs: Tensor) -> Tensor:
+        outputs, gate = inputs.chunk(2, dim=self.dim)
+        return outputs * gate.sigmoid()
+
 class Conformer(nn.Module):
-    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300, dropout_rate = 0.1):
+    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300, dropout_rate = 0.01):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
@@ -278,29 +279,24 @@ class Conformer(nn.Module):
         self.layernorm = nn.LayerNorm(input_size)
         self.conv1 = nn.Sequential(
             nn.Conv1d(in_channels=input_size, out_channels=256, kernel_size=3, padding="same"),
-            nn.ReLU(True),
+            nn.LeakyReLU(negative_slope=0.01,inplace=True),
             nn.Dropout(p=dropout_rate),
-            nn.Conv1d(in_channels=256, out_channels=128, kernel_size=3, padding="same"),
-            Swish(),
+            nn.Conv1d(in_channels=256, out_channels=hidden_layer_size, kernel_size=3, padding="same"),
+            nn.LeakyReLU(negative_slope=0.01,inplace=True),
             nn.Dropout(p=dropout_rate)
         )
-
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=n_head, batch_first=True, dropout=dropout_rate)
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=n_head, batch_first=True, dropout=0.1,dim_feedforward=256)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
         self.PE = PositionalEncoding(self.hidden_layer_size, max_seq_len=max_seq_len)
 
 
-        self.rnn = nn.GRU(input_size=hidden_layer_size, hidden_size=hidden_layer_size//2, num_layers=1, batch_first=True),
-        self.linear = nn.Sequential(
-            nn.Linear(hidden_layer_size//2, output_size),
-            nn.ReLU(True),
-            nn.Dropout(p=dropout_rate)
-        )
+        #self.rnn = nn.GRU(input_size=hidden_layer_size, hidden_size=hidden_layer_size//2, num_layers=1, batch_first=True)
+        self.linear = nn.Linear(hidden_layer_size, output_size)
 
         self.memory = None
 
     def forward(self,audio):
-        # audio 1, length(n_frames), 1024
+        # audio 1, n_frames, 1024
         if self.memory is not None:
             self.memory = torch.cat((self.memory, audio), 1)
             if self.memory.shape[1]>self.max_seq_len:
@@ -310,11 +306,12 @@ class Conformer(nn.Module):
         x = self.layernorm(self.memory)
         x = self.memory.permute(0,2,1)
         x = self.conv1(x)
-        x = x.permute(0,2,1)
-        x = self.PE(x)
+        conv_out = x.permute(0,2,1)
+        x = self.PE(conv_out)
         x = self.transformer_encoder(x)
-        x, _ = self.rnn(x)
+       # x, _ = self.rnn(x)
         x = self.linear(x)
+        #x = torch.clamp(x,0,1)
         return x[:,-audio.shape[1]:,:]
     
     def reset_hidden_cell(self):
