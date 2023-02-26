@@ -15,7 +15,7 @@ def infer(args):
     # Load model 
     my_model = Audio2BS(base_model_path, model_path, device, audio_section_length=args.audio_section_length)
     # Load Auido
-    audio, rate = librosa.load("./test_data/tts_1.wav", sr=args.sampling_rate)
+    audio, rate = librosa.load("./12.wav", sr=args.sampling_rate)
     # Inference
     t1 = time.time()
     output = my_model.inference(audio, rate)
@@ -24,7 +24,7 @@ def infer(args):
 
     print(int(round((t2-t1)*1000)))
     output_df = my_model.np_to_csv(output, calibration=False)  #pandas dataframe
-    output_df.to_csv("output.csv",index=False)
+    output_df.to_csv("output_2.csv",index=False)
 
 if __name__=="__main__":
     args = get_common_args()

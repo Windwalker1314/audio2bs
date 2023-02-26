@@ -14,7 +14,7 @@ with open("tts.txt","w") as f:
 
 arr = np.vectorize(np.binary_repr)(a, width=16)
 print(arr)
-""""""
+"""
 import wave
 def pcm2wav(pcm_file, wav_file, channels=1, bits=16, sample_rate=16000):
     pcmf = open(pcm_file, 'rb')
@@ -42,8 +42,9 @@ def load_pcm(pcm_file):
     print(len(b))
     print(t2)
 
-#pcm2wav("test_audio.pcm","test_audio.wav")
-load_pcm("test_audio.pcm")""""""
+pcm2wav("test_audio.pcm","test_audio.wav")
+load_pcm("test_audio.pcm")
+"""
 import json
 import base64
 try:
@@ -59,7 +60,7 @@ except KeyError as e:
     print(e)
 except Exception as e:
     print(str(type(e)),e)"""
-
+"""
 from audio2bs import LSTM
 import torch
 import time
@@ -87,4 +88,4 @@ print(int(round((t3-t2)*1000)))
 c = torch.randn((1,60,1024)).to(dtype=torch.float32, device="cuda:0")
 predict(model,c)
 t4 = time.time()
-print(int(round((t4-t3)*1000)))
+print(int(round((t4-t3)*1000)))"""

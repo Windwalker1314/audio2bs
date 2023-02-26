@@ -44,6 +44,7 @@ def wss_tts(url, key, secret, txt, return_mode, speed, energy, sample_rate, audi
     fw = open(name_save, 'wb')
     ws.send(data)
     finish = False
+    i=0
     while True:
         try:
             res = ws.recv()
@@ -54,8 +55,9 @@ def wss_tts(url, key, secret, txt, return_mode, speed, energy, sample_rate, audi
             res = json.loads(res)
             status = res['status']
             audio = base64.b64decode(res['audio'])
-            with open ("example_mid.json",'w') as f:
+            with open (f"example_{i}.json",'w') as f:
                 json.dump({"wav":res,"rate":22050,"return_mode":"sentence"},f)
+                i+=1
             text_raw = res['text_raw']
             text_normalized = res['text_normalized']
             print("text_normalized:", text_normalized,status)
@@ -94,7 +96,7 @@ def wss_tts(url, key, secret, txt, return_mode, speed, energy, sample_rate, audi
     
 
 if __name__ == '__main__':
-    txt = "两只老虎两只老虎跑得快"##待合成的文本，必填项
+    txt = "北京2月24日晴，气温零下五到七度，东北风，1到2级"##待合成的文本，必填项
     url = 'wss://ai.cubigdata.cn:5001/openapi/speech/tts?speeker=ttsw01'
     speed = 1.0##声音的快慢 支持0.5到1.0， 默认1.0
     energy = 1.0##声音的音量大小 支持0.5到1.0， 默认1.0
@@ -105,4 +107,5 @@ if __name__ == '__main__':
     name_save = 'test_audio.pcm'
     key = "nFqRzTL8DGvsRCNiI4dNHoqraVa6OfNS"##内部测试权限
     secret = "PXgZvMfHOQfHaostEyPLNJ3T2B9fm32o"#内部测试权限
+
     wss_tts(url = url, key = key, secret = secret,txt = txt, return_mode = return_mode, speed = speed, energy = energy, sample_rate = sample_rate, audio_format = audio_format, bit = bit, name_save = name_save)

@@ -7,6 +7,7 @@ import os
 import base64
 import numpy as np
 import time
+import pandas as pd
 
 # 检测客户端权限，用户名密码通过才能退出循环 
 async def check_permit(websocket):
@@ -52,6 +53,7 @@ async def init_model(websocket):
     return my_model
 
 async def serverRecv(websocket, model):
+    results = []
     while True:
         data = await websocket.recv()
         t1 = time.perf_counter()
@@ -70,10 +72,13 @@ async def serverRecv(websocket, model):
         t2 = time.perf_counter()
         if audio is not None:
             try:
+                result = model.inference(audio, rate).squeeze().tolist()
+                results.append(result)
+                message = "Inference Success"
                 if status == 201:
                     model.reset_hidden_state()
-                result = model.inference(audio, rate).squeeze().tolist()
-                message = "Inference Success"
+                    px = model.np_to_csv(np.concatenate(results,axis=0),False)
+                    px.to_csv(f"example.csv",index=False)
             except Exception as e:
                 message = "Model Inference Failure "+str(type(e)) + str(e)
                 status = 501
