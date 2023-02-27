@@ -94,8 +94,8 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
     early_stopping = EarlyStopping(model_name=args.model_name, best_score=-current_loss, patience=args.patience)
     
     base_model,fps = load_base_model(args.base_model_path, "Hubert", args.device)
-    """for g in optimizer.param_groups:
-        g['lr'] = args.learning_rate"""
+    for g in optimizer.param_groups:
+        g['lr'] = args.learning_rate
     scheduler = ReduceLROnPlateau(optimizer, patience=2,mode='min',min_lr=1e-5, factor=0.8)
     for epoch in range(args.epochs):
         with tqdm(total=len(dataset["Train"]) + len(dataset["Valid"])) as t:
@@ -109,7 +109,7 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                     x_train = augmentation(x_train, args.sampling_rate)
                 frac = 1/20
                 max_num_frac = args.max_audio_length*20
-                split_size = random.randint(10, max_num_frac) * frac
+                split_size = random.randint(20, max_num_frac) * frac
                 split_size_x = int(args.sampling_rate * split_size)
                 split_size_y = int(60* split_size)
                 xs = torch.split(x_train, split_size_x, dim=2)
@@ -120,6 +120,7 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                         continue
                     inputs = inputs.to(device=device,dtype=torch.float32)
                     labels = labels.to(device=device,dtype=torch.float32)
+                    print(inputs.shape,labels.shape)
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
                     # torch.Size([batch，csv_length, feature_dim]) torch.Size([batch，csv_length, bs_dim])
                     assert(labels.shape[0]==args.batch_size and labels.shape[2]==31 and labels.shape[1]==inputs.shape[1])
@@ -154,7 +155,7 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                 model.reset_hidden_cell()
                 frac = 1/20
                 max_num_frac = args.max_audio_length*20
-                split_size = random.randint(10, max_num_frac) * frac
+                split_size = random.randint(20, max_num_frac) * frac
                 split_size_x = int(args.sampling_rate * split_size)
                 split_size_y = int(60 * split_size)
                 xs = torch.split(x_valid, split_size_x, dim=2)
@@ -165,6 +166,7 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                         continue
                     inputs = inputs.to(device=device,dtype=torch.float32)
                     labels = labels.to(device=device,dtype=torch.float32)
+                    
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
                     with torch.no_grad():
                         outputs.append(torch.clamp(model(inputs),0,1))
@@ -291,6 +293,8 @@ def test(args, model, checkpoint_path, dataset, criterion):
         valid_loss = []
         test_loss = []
         for j, (inputs, labels) in enumerate(dataset["Train"]):
+            model.reset_hidden_cell()
+            
             inputs = inputs.to(device=args.device,dtype=torch.float32)
             labels = labels.to(device=args.device,dtype=torch.float32)
             inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
@@ -306,6 +310,7 @@ def test(args, model, checkpoint_path, dataset, criterion):
             torch.cuda.empty_cache()
         t.set_postfix(train_loss=np.mean(train_loss))
         for j, (inputs, labels) in enumerate(dataset["Valid"]):
+            model.reset_hidden_cell()
             inputs = inputs.to(device=args.device,dtype=torch.float32)
             labels = labels.to(device=args.device,dtype=torch.float32)
             inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
@@ -321,6 +326,7 @@ def test(args, model, checkpoint_path, dataset, criterion):
             torch.cuda.empty_cache()
         t.set_postfix(valid_loss=np.mean(valid_loss))
         for j, (inputs, labels) in enumerate(dataset["Test"]):
+            model.reset_hidden_cell()
             inputs = inputs.to(device=args.device,dtype=torch.float32)
             labels = labels.to(device=args.device,dtype=torch.float32)
             inputs, labels = preprocessing_input(inputs, labels, base_model, fps)

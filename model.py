@@ -66,8 +66,9 @@ class PeriodicPositionalEncoding(nn.Module):
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model, max_seq_len=600):
-        super(PositionalEncoding, self).__init__()       
+    def __init__(self, d_model, max_seq_len=300, dropout =0.1):
+        super(PositionalEncoding, self).__init__()
+        self.dropout=nn.Dropout(dropout)
         pe = torch.zeros(max_seq_len, d_model)
         position = torch.arange(0, max_seq_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
@@ -78,25 +79,34 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        return x + self.pe[:x.size(0), :]
+        return self.dropout(x + self.pe[:x.size(0), :])
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=1024, hidden_layer_size=256, output_size=31):
+    def __init__(self, input_size=1024, hidden_layer_size=128, output_size=31):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
         self.hidden_layer_size = hidden_layer_size
-        self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers=2, batch_first= True,  dropout=0.5, bidirectional=True)
-        self.linear = nn.Sequential(
-            nn.Linear(hidden_layer_size*2, 128),
+        self.conv1 = nn.Sequential(
+            nn.Conv1d(in_channels=input_size, out_channels=256, kernel_size=3, padding="same"),
+            nn.LeakyReLU(negative_slope=0.01,inplace=True),
+            nn.Dropout(p=0.1),
+            nn.Conv1d(in_channels=256, out_channels=hidden_layer_size, kernel_size=3, padding="same"),
             nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.Linear(128,output_size)
+            nn.Dropout(p=0.1)
+        )
+        self.lstm = nn.LSTM(hidden_layer_size, hidden_layer_size, num_layers=2, batch_first= True,  dropout=0.5, bidirectional=True)
+        self.linear = nn.Sequential(
+            nn.Linear(256,output_size),
+            nn.ReLU(True)
         )
         self.hidden_cell = None
 
 
     def forward(self, x):
+        x = x.permute(0,2,1)
+        x = self.conv1(x)
+        x = x.permute(0,2,1)
         if self.hidden_cell is None:
             lstm_out, self.hidden_cell = self.lstm(x)
         else:
@@ -211,29 +221,29 @@ print(a(audio1).shape)"""
 
 
 class Transformer(nn.Module):
-    def __init__(self,input_size=1024, hidden_layer_size=128, output_size=31, n_head=4, max_seq_len=300,droupout=0.2):
+    def __init__(self,input_size=1024, hidden_layer_size=512, output_size=31, n_head=4, max_seq_len=300,droupout=0.1):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
         self.hidden_layer_size = hidden_layer_size
         self.max_seq_len = max_seq_len
 
-        """self.ffc=nn.Sequential(
+        self.ffc=nn.Sequential(
             nn.Linear(input_size,hidden_layer_size),
             nn.ReLU(True),
             nn.Dropout(droupout),
-        )"""
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=input_size, nhead=n_head, batch_first=True, dropout=droupout,dim_feedforward=2048)
+        )
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=n_head, batch_first=True, dropout=droupout,dim_feedforward=1024)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
-        self.PE = PositionalEncoding(input_size, max_seq_len=max_seq_len)
+        self.PE = PositionalEncoding(hidden_layer_size, max_seq_len=max_seq_len)
 
         
 
         self.linear = nn.Sequential(
-            nn.Linear(input_size, output_size),
+            nn.Linear(hidden_layer_size, 128),
             nn.ReLU(True),
-            nn.Linear(input_size, output_size),
-            nn.ReLU(True),
+            nn.Dropout(droupout),
+            nn.Linear(128, output_size),
         )
 
         self.memory = None
@@ -246,8 +256,8 @@ class Transformer(nn.Module):
                 self.memory = self.memory[:,-self.max_seq_len:,:]
         else:
             self.memory = audio
-        
-        x = self.PE(self.memory)
+        x = self.ffc(self.memory)
+        x = self.PE(x)
         x = self.transformer_encoder(x)
         x = self.linear(x)
         return x[:,-audio.shape[1]:,:]
@@ -322,3 +332,51 @@ m1 = nn.Conv1d(in_channels=256, out_channels=256, kernel_size=5, padding="same")
 
 a= torch.randn(1, 1024, 60)
 print(m(a).shape)"""
+
+class TransformerXLModel(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size=512, num_layers=6, num_heads=8, dropout=0.1, max_seq_len=300, mem_len=300) -> None:
+        super().__init__()
+
+        self.input_size = input_size
+        self.output_size = output_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.dropout = dropout
+        self.max_seq_len = max_seq_len
+        self.mem_len = mem_len
+
+        self.embeddings = nn.Linear(input_size, hidden_size)
+        self.pos_encoder = PositionalEncoding(hidden_size,max_seq_len=max_seq_len, dropout=dropout)
+
+        self.transformer_layer = nn.TransformerEncoderLayer(d_model=hidden_size, nhead=num_heads, dim_feedforward=hidden_size, dropout=dropout)
+
+        self.memory = nn.Parameter(torch.empty(1, num_layers, mem_len, hidden_size), requires_grad=False)
+
+        self.output_layer = nn.Linear(hidden_size, output_size)
+        
+        self.init_parameters()
+        self.reset_hidden_cell()
+    
+    def init_parameters(self):
+        nn.init.normal_(self.memory)
+    
+    def update_memory(self, new_memory):
+        self.memory = torch.cat([self.memory, new_memory], dim=2)[:,:, -self.mem_len:,:]
+    
+    def reset_hidden_cell(self):
+        self.memory.fill_(0)
+    
+    def forward(self, x):
+        batch_size, seq_len, input_size = x.shape
+
+        x = self.embeddings(x)  # batch_size, seq_len, hidden_size
+
+        x = self.pos_encoder(x) # batch_size, seq-len, hidden_size
+
+        new_mem = torch.empty(1,self.num_layers, seq_len, self.hidden_size, requires_grad=False)
+        for i in self.num_layers:
+            new_mem[:,i,:,:] = self.transformer_layer(x)
+        self.update_memory(new_mem)
+
+

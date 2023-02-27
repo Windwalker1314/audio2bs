@@ -22,7 +22,7 @@ def runner(args):
     elif "Conformer" in args.model_name:
         model = Conformer()
     model.to(args.device)
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.RMSprop(model.parameters(), lr=args.learning_rate)
     
     criterion = nn.MSELoss()
     current_loss = 999999
@@ -61,16 +61,35 @@ def infer(args):
     inference(args, model, checkpoint_path=os.path.join(args.model_path, args.model_name+".pth"), wav_lst=wavs, calibration=False)
 
 def test_model(args):
-    path = create_dataloaders(args)
-    dataset = get_dataloaders(path)
-    model = LSTM()
+    #path = create_dataloaders(args)
+    dataset = get_dataloaders(args.dataset_path)
+    if "LSTM" in args.model_name:
+        model = LSTM()
+    elif "Faceformer" in args.model_name:
+        model = Faceformer(args)
+    elif "Transformer" in args.model_name:
+        model = Transformer()
+    elif "Conformer" in args.model_name:
+        model = Conformer()
     model.to(args.device)
     criterion = nn.MSELoss()
     train_loss, valid_loss, test_loss = test(args, model, checkpoint_path=os.path.join(args.model_path, args.model_name+".pth"), dataset=dataset, criterion=criterion)
-    for i,loss in enumerate(train_loss):
-        if loss>=0.003:
-            print(i, loss)
-
+    indexes = []
+    for i,loss in zip(dataset["Train_key"], train_loss):
+        if loss>0.005:
+            print(i,loss)
+            indexes.append(i)
+    print()
+    for i,loss in zip(dataset["Val_key"], valid_loss):
+        if loss>0.005:
+            print(i,loss)
+            indexes.append(i)
+    print()
+    for i,loss in zip(dataset["Test_key"], test_loss):
+        if loss>0.005:
+            print(i,loss)
+            indexes.append(i)
+    print(indexes)
 if __name__=="__main__":
     args = get_common_args()
     args = get_train_args(args)

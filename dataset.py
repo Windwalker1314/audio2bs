@@ -117,32 +117,45 @@ def read_data(args):
                 data[key]["dataset_name"] = sub_dir
                 data[key]["bs"] = bs_handler(bs_path,calibration=False)   # bslength, 31
 
-
+    train_key = []
+    val_key = []
+    test_key = []
     for k, v in data.items():
         key = int(k.split("_")[0])
+        if key in [165,168,172,174,185,193,195,200,329,330,529,621,
+                   634,796,797,839,846,904,905,911,912,917,927,929,
+                   930,937,939,183,850,932,180,186,638,922]:
+            continue
         dataset_name = v["dataset_name"]
         if key in train_ind or dataset_name=="yifeng_150":
+            if dataset_name=="yifeng_150":
+                key+=1000
+            train_key.append(key)
             train_data.append(v)
         elif key in val_ind:
             valid_data.append(v)
+            val_key.append(key)
         elif key in test_ind:
             test_data.append(v)
+            test_key.append(key)
         else:
             raise KeyError
-    
-    return train_data, valid_data, test_data
+    return train_data, valid_data, test_data, train_key, val_key, test_key
                 
 
 
 def create_dataloaders(args):
     dataset = {}
-    train_data, valid_data, test_data = read_data(args)
+    train_data, valid_data, test_data, train_key, val_key, test_key = read_data(args)
     max_x = int(16000*20)
     max_y = int(60 * 20)
     collate_fn = collater(y_dim=len(MOUTH_BS),max_len_x=max_x, max_len_y=max_y)
     dataset["Train"] = DataLoader(Wav2BsDataset(train_data), batch_size=args.batch_size, shuffle=True,collate_fn=collate_fn)
     dataset["Valid"] = DataLoader(Wav2BsDataset(valid_data), batch_size=args.batch_size, shuffle=False,collate_fn=collate_fn)
     dataset["Test"] = DataLoader(Wav2BsDataset(test_data), batch_size=args.batch_size, shuffle=False,collate_fn=collate_fn)
+    dataset["Train_key"] = train_key
+    dataset["Val_key"] = val_key
+    dataset["Test_key"] = test_key
     print("Dataset loaded")
     with open(args.dataset_path, 'wb') as outp:
         pickle.dump(dataset, outp, pickle.HIGHEST_PROTOCOL)
