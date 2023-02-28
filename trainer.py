@@ -96,7 +96,7 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
     base_model,fps = load_base_model(args.base_model_path, "Hubert", args.device)
     for g in optimizer.param_groups:
         g['lr'] = args.learning_rate
-    scheduler = ReduceLROnPlateau(optimizer, patience=2,mode='min',min_lr=1e-5, factor=0.8)
+    scheduler = ReduceLROnPlateau(optimizer, patience=2,mode='min',min_lr=1e-6, factor=0.6)
     for epoch in range(args.epochs):
         with tqdm(total=len(dataset["Train"]) + len(dataset["Valid"])) as t:
             model.train()
@@ -116,11 +116,14 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                 ys = torch.split(y_train, split_size_y, dim=1)
                 outputs = []
                 for inputs,labels in zip(xs,ys):
-                    if inputs.shape[2]<1100:
+                    if labels.shape[1]<4:
                         continue
+                    elif inputs.shape[2]<split_size_x:
+                        n_frame = labels.shape[1]
+                        assert(n_frame>3)
+                        inputs = inputs[:,:,:min(n_frame*267,inputs.shape[2])]
                     inputs = inputs.to(device=device,dtype=torch.float32)
                     labels = labels.to(device=device,dtype=torch.float32)
-                    print(inputs.shape,labels.shape)
                     inputs, labels = preprocessing_input(inputs, labels, base_model, fps)
                     # torch.Size([batch，csv_length, feature_dim]) torch.Size([batch，csv_length, bs_dim])
                     assert(labels.shape[0]==args.batch_size and labels.shape[2]==31 and labels.shape[1]==inputs.shape[1])
@@ -162,8 +165,11 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                 ys = torch.split(y_valid, split_size_y, dim=1)
                 outputs = []
                 for inputs,labels in zip(xs,ys):
-                    if inputs.shape[2]<1100:
+                    if labels.shape[1]<4:
                         continue
+                    elif inputs.shape[2]<split_size_x:
+                        n_frame = labels.shape[1]
+                        inputs = inputs[:,:,:min(n_frame*267,inputs.shape[2])]
                     inputs = inputs.to(device=device,dtype=torch.float32)
                     labels = labels.to(device=device,dtype=torch.float32)
                     

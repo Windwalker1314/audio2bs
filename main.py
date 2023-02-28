@@ -22,7 +22,7 @@ def runner(args):
     elif "Conformer" in args.model_name:
         model = Conformer()
     model.to(args.device)
-    optimizer = optim.RMSprop(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     
     criterion = nn.MSELoss()
     current_loss = 999999
@@ -31,6 +31,7 @@ def runner(args):
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         current_loss = checkpoint['loss']
+        print(current_loss)
     criterion.to(args.device)
     
     train(args, model, dataset,criterion=criterion, optimizer=optimizer, device=args.device, current_loss=current_loss)

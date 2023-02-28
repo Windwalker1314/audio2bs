@@ -87,15 +87,7 @@ class LSTM(nn.Module):
         self.input_size=input_size
         self.out_size=output_size
         self.hidden_layer_size = hidden_layer_size
-        self.conv1 = nn.Sequential(
-            nn.Conv1d(in_channels=input_size, out_channels=256, kernel_size=3, padding="same"),
-            nn.LeakyReLU(negative_slope=0.01,inplace=True),
-            nn.Dropout(p=0.1),
-            nn.Conv1d(in_channels=256, out_channels=hidden_layer_size, kernel_size=3, padding="same"),
-            nn.ReLU(True),
-            nn.Dropout(p=0.1)
-        )
-        self.lstm = nn.LSTM(hidden_layer_size, hidden_layer_size, num_layers=2, batch_first= True,  dropout=0.5, bidirectional=True)
+        self.lstm = nn.LSTM(1024, hidden_layer_size, num_layers=2, batch_first= True,  dropout=0.5, bidirectional=True)
         self.linear = nn.Sequential(
             nn.Linear(256,output_size),
             nn.ReLU(True)
@@ -104,9 +96,6 @@ class LSTM(nn.Module):
 
 
     def forward(self, x):
-        x = x.permute(0,2,1)
-        x = self.conv1(x)
-        x = x.permute(0,2,1)
         if self.hidden_cell is None:
             lstm_out, self.hidden_cell = self.lstm(x)
         else:
@@ -129,7 +118,7 @@ class Faceformer(nn.Module):
         self.transformer_decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=1)
         self.audio_feature_map = nn.Linear(input_size, self.hidden_layer_size)
 
-        self.PPE = PositionalEncoding(self.hidden_layer_size, max_seq_len=max_seq_len)
+        self.PPE = PeriodicPositionalEncoding(self.hidden_layer_size, max_seq_len=max_seq_len)
 
         self.biased_mask = init_biased_mask(n_head = n_head, max_seq_len = max_seq_len, period=10)
         self.vertice_map_r = nn.Linear(self.hidden_layer_size, self.out_size)
@@ -142,7 +131,7 @@ class Faceformer(nn.Module):
         nn.init.constant_(self.vertice_map_r.weight, 0)
         nn.init.constant_(self.vertice_map_r.bias, 0)
     
-    def forward(self, audio,bs,teacher_forcing=0):
+    def forward(self, audio,bs=None,teacher_forcing=0):
         # audio 1, length(n_frames), 1024
         # bs    1, length(n_frames), 31
         assert audio.shape[1]<self.max_seq_len, "Audio sequence is too long:"+str(audio.shape[1])+" Expected:"+str(self.max_seq_len)
@@ -154,7 +143,8 @@ class Faceformer(nn.Module):
                 self.hidden_states = self.hidden_states[:,-self.max_seq_len:,:]
 
         frame_num = audio.shape[1]
-
+        if bs is None:
+            teacher_forcing = 0
         if teacher_forcing>0.99:
             if self.last_bs is None:
                 self.last_bs = torch.zeros((1,1,31)).to(device=self.device)
@@ -221,29 +211,26 @@ print(a(audio1).shape)"""
 
 
 class Transformer(nn.Module):
-    def __init__(self,input_size=1024, hidden_layer_size=512, output_size=31, n_head=4, max_seq_len=300,droupout=0.1):
+    def __init__(self,input_size=1024, hidden_layer_size=1024, output_size=31, max_seq_len=300,droupout=0.2):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
         self.hidden_layer_size = hidden_layer_size
         self.max_seq_len = max_seq_len
 
-        self.ffc=nn.Sequential(
-            nn.Linear(input_size,hidden_layer_size),
-            nn.ReLU(True),
-            nn.Dropout(droupout),
-        )
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=n_head, batch_first=True, dropout=droupout,dim_feedforward=1024)
+
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=4, batch_first=True, dropout=droupout,dim_feedforward=2048)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
-        self.PE = PositionalEncoding(hidden_layer_size, max_seq_len=max_seq_len)
+        self.PE = PositionalEncoding(1024, max_seq_len=max_seq_len)
 
         
 
         self.linear = nn.Sequential(
-            nn.Linear(hidden_layer_size, 128),
+            nn.Linear(1024, 256),
             nn.ReLU(True),
             nn.Dropout(droupout),
-            nn.Linear(128, output_size),
+            nn.Linear(256, output_size),
+            nn.ReLU(True)
         )
 
         self.memory = None
@@ -256,8 +243,7 @@ class Transformer(nn.Module):
                 self.memory = self.memory[:,-self.max_seq_len:,:]
         else:
             self.memory = audio
-        x = self.ffc(self.memory)
-        x = self.PE(x)
+        x = self.PE(self.memory)
         x = self.transformer_encoder(x)
         x = self.linear(x)
         return x[:,-audio.shape[1]:,:]
