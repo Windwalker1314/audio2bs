@@ -4,8 +4,8 @@ import json
 import numpy as np
 from arguments import get_common_args,get_train_args,get_server_args
 
-count = 0
-
+count_refuse = 0
+count_closed = 0 
 
 # 向服务器端认证，用户名密码通过才能退出循环 直接输入  admin:123456
 async def auth_system(websocket): 
@@ -87,14 +87,19 @@ async def clientRun():
                 
         except ConnectionRefusedError as e:
             print(e)
-            global count
-            if count>5:
+            global count_refuse
+            if count_refuse>5:
                 return
-            count += 1
+            count_refuse += 1
             await asyncio.sleep(2)
             print("Reconnecting...")
         except websockets.exceptions.ConnectionClosedError as e:
             print("Timeout, Reconnecting...")
+            global count_closed
+            if count_closed>5:
+                return
+            count_closed+=1
+            await asyncio.sleep(2)
 
 def init():
     global args
