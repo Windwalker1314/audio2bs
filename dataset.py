@@ -127,17 +127,12 @@ def read_data(args):
                    930,937,939,183,850,932,180,186,638,922]:
             continue
         dataset_name = v["dataset_name"]
-        if key in train_ind or dataset_name=="yifeng_150":
-            if dataset_name=="yifeng_150":
-                key+=1000
+        if key in train_ind or dataset_name=="yifeng_150" or key in test_ind:
             train_key.append(key)
             train_data.append(v)
         elif key in val_ind:
             valid_data.append(v)
             val_key.append(key)
-        elif key in test_ind:
-            test_data.append(v)
-            test_key.append(key)
         else:
             raise KeyError
     return train_data, valid_data, test_data, train_key, val_key, test_key

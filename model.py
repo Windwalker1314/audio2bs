@@ -211,7 +211,7 @@ print(a(audio1).shape)"""
 
 
 class Transformer(nn.Module):
-    def __init__(self,input_size=1024, hidden_layer_size=1024, output_size=31, max_seq_len=300,droupout=0.2):
+    def __init__(self,input_size=1024, hidden_layer_size=256, output_size=31, max_seq_len=300,droupout=0.1):
         super().__init__()
         self.input_size=input_size
         self.out_size=output_size
@@ -219,16 +219,18 @@ class Transformer(nn.Module):
         self.max_seq_len = max_seq_len
 
 
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=4, batch_first=True, dropout=droupout,dim_feedforward=2048)
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
-        self.PE = PositionalEncoding(1024, max_seq_len=max_seq_len)
-
-        
-
-        self.linear = nn.Sequential(
-            nn.Linear(1024, 256),
+        self.ffc = nn.Sequential(
+            nn.Linear(1024,hidden_layer_size),
             nn.ReLU(True),
-            nn.Dropout(droupout),
+            nn.Dropout(0.01)
+        )
+
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_layer_size, nhead=4, batch_first=True, dropout=droupout,dim_feedforward=512)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=2)
+        self.PE = PositionalEncoding(hidden_layer_size, max_seq_len=max_seq_len)
+
+    
+        self.linear = nn.Sequential(
             nn.Linear(256, output_size),
             nn.ReLU(True)
         )
@@ -243,7 +245,8 @@ class Transformer(nn.Module):
                 self.memory = self.memory[:,-self.max_seq_len:,:]
         else:
             self.memory = audio
-        x = self.PE(self.memory)
+        x = self.ffc(self.memory)
+        x = self.PE(x)
         x = self.transformer_encoder(x)
         x = self.linear(x)
         return x[:,-audio.shape[1]:,:]
