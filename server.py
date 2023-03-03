@@ -41,7 +41,7 @@ async def init_model(websocket):
     start_data = "Initializing ..."
     await websocket.send(start_data)
     base_model_path = args.base_model_path
-    model_path = os.path.join(args.model_path,args.model_name+".pt")
+    model_path = os.path.join(args.model_path,args.model_name+".pth")
     device = args.device
     # Load model
     my_model =  Audio2BS(base_model_path, model_path, device)
