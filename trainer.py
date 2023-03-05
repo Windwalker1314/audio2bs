@@ -109,7 +109,7 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                     x_train = augmentation(x_train, args.sampling_rate)
                 frac = 1/20
                 max_num_frac = args.max_audio_length*20
-                split_size = random.randint(20, max_num_frac) * frac
+                split_size = random.randint(10, max_num_frac) * frac
                 split_size_x = int(args.sampling_rate * split_size)
                 split_size_y = int(60* split_size)
                 xs = torch.split(x_train, split_size_x, dim=2)
@@ -158,7 +158,7 @@ def train(args, model, dataset, criterion, optimizer, device, current_loss):
                 model.reset_hidden_cell()
                 frac = 1/20
                 max_num_frac = args.max_audio_length*20
-                split_size = random.randint(20, max_num_frac) * frac
+                split_size = random.randint(10, max_num_frac) * frac
                 split_size_x = int(args.sampling_rate * split_size)
                 split_size_y = int(60 * split_size)
                 xs = torch.split(x_valid, split_size_x, dim=2)
@@ -221,6 +221,7 @@ def np_to_csv(x, calibration):
     return px
     
 def inference(args, model, checkpoint_path, wav_lst, calibration):
+    from torch_augmentation import gain
     torch.cuda.empty_cache()
     t1 = time.time() # Load Processor
     processor = Wav2Vec2FeatureExtractor.from_pretrained(args.base_model_path)
@@ -232,6 +233,7 @@ def inference(args, model, checkpoint_path, wav_lst, calibration):
 
     t3 = time.time()  # Load LSTM model
     checkpoint = torch.load(checkpoint_path)
+    print(checkpoint["loss"])
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     t4 = time.time() 
@@ -245,8 +247,9 @@ def inference(args, model, checkpoint_path, wav_lst, calibration):
 
         t5 = time.time() # Load audio
         sig, rate = librosa.load(wav_path, sr=args.sampling_rate)
-        audio = processor(sig, return_tensors="pt", sampling_rate=rate).input_values # (1, audiolength)
         
+        audio = processor(sig, return_tensors="pt", sampling_rate=rate).input_values # (1, audiolength)
+        audio = gain(audio.unsqueeze(0),rate).squeeze(0)
         split_size = args.audio_section_length*args.sampling_rate
         chunks = torch.split(audio,split_size, dim=1)
         
@@ -262,11 +265,10 @@ def inference(args, model, checkpoint_path, wav_lst, calibration):
             t6 = time.time() # Base model inference
             with torch.no_grad():
                 last_h_state = base_model(x).last_hidden_state
-                print(last_h_state.shape)
             x = linear_interpolation(last_h_state, input_fps=fps, output_fps=60)
             t7 = time.time() # LSTM inference
             with torch.no_grad():
-                x = model(x).detach().cpu().numpy()
+                x = torch.clamp(model(x),0,1).detach().cpu().numpy()
             #print(model.hidden_cell[0].shape,model.hidden_cell[1].shape)
             t8 = time.time()
             

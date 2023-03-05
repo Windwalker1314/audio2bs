@@ -57,22 +57,23 @@ def http_tts(url, key, secret, content, speed, energy, sample_rate, bit, audio_f
 url = "https://ai.cubigdata.cn:5001/openapi/speech/tts/short?speeker=ttsw01"
 key = "bg3mTvHWlhpXwlcRullOKxUY"##内部测试权限
 secret = "SVsUZjWf1aANZ5XDeC6tKARdpccsWiw7"#内部测试权限
-#content = "新华社卢布尔雅那5月26日电,资深记者彭立军带来报道"###需要转为音频的文本，必填，长度最长为3000
+content = "宝贝我爱你宝贝我爱你宝贝我爱你宝贝我爱你"###需要转为音频的文本，必填，长度最长为3000
 speed = 1.0###音频的速度，0.5到1.5
 energy = 1.0###音频的音量，0.5到1.5
 sample_rate = 16000###采样率，可选8000,16000,22050
 bit = 16###采样宽度，可选8、16
 kbps = 128
 audio_format = 'wav'
-#name_save = f'./audio/output-http-0.{audio_format}'###本地保存文件名
+name_save = f'./audio/output-http-0.{audio_format}'###本地保存文件名
 
-with open("./corpus/new_corpus.txt", encoding="UTF-8",mode="r") as f:
+"""with open("./corpus/new_corpus.txt", encoding="UTF-8",mode="r") as f:
     sentences = f.readlines()
     content = "".join([s.strip() for s in sentences])[:1000]
     print(content)
-    name_save = f'./audio/tts_all.{audio_format}'
-    http_tts(url, key, secret, content, speed, energy, sample_rate, bit, audio_format, kbps, name_save)
-    """for i,s in enumerate(sentences):
+    name_save = f'./audio/tts_all.{audio_format}'"""
+
+http_tts(url, key, secret, content, speed, energy, sample_rate, bit, audio_format, kbps, name_save)
+"""for i,s in enumerate(sentences):
         name_save = f'./audio/tts_{i}.{audio_format}'###本地保存文件名
         http_tts(url, key, secret, s, speed, energy, sample_rate, bit, audio_format, kbps, name_save)"""
 #kbps = 256

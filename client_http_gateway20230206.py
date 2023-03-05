@@ -51,7 +51,7 @@ def http_tts(url, key, secret, content, speed, energy, sample_rate, bit, audio_f
 url = "https://ai.cubigdata.cn:5001/openapi/speech/tts/short?speeker=ttsw01"
 key = "bg3mTvHWlhpXwlcRullOKxUY"##内部测试权限
 secret = "SVsUZjWf1aANZ5XDeC6tKARdpccsWiw7"#内部测试权限
-content = "新华社卢布尔雅那5月26日电,资深记者彭立军带来报道"###需要转为音频的文本，必填，长度最长为3000
+content = "宝贝我爱你"###需要转为音频的文本，必填，长度最长为3000
 speed = 1.0###音频的速度，0.5到1.5
 energy = 1.0###音频的音量，0.5到1.5
 sample_rate = 22050###采样率，可选8000,16000,22050

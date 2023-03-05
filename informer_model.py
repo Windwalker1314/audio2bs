@@ -6,13 +6,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-
-"""q = torch.randn(1, 60, 8, 128)
-k = torch.randn(1, 60, 8, 128)
-v = torch.randn(1, 60, 8, 128)"""
-
+"""
+q = torch.randn(1, 60, 8, 128)
+k = torch.randn(1, 15, 8, 128)
+v = torch.randn(1, 15, 8, 128)
+a = FullAttention()
+print(a(q,k,v,None))
+"""
 class PositionalEmbedding(nn.Module):
-    def __init__(self, d_model, max_len=5000):
+    def __init__(self, d_model, max_len=2048):
         super(PositionalEmbedding, self).__init__()
         # Compute the positional encodings once in log space.
         pe = torch.zeros(max_len, d_model).float()
@@ -35,7 +37,7 @@ class ConvEmbedding(nn.Module):
         super(ConvEmbedding, self).__init__()
         padding = 1 if torch.__version__>='1.5.0' else 2
         self.tokenConv = nn.Conv1d(in_channels=c_in, out_channels=d_model, 
-                                    kernel_size=3, padding=padding, padding_mode='circular')
+                                    kernel_size=3, padding=padding, padding_mode='replicate')
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 nn.init.kaiming_normal_(m.weight,mode='fan_in',nonlinearity='leaky_relu')
@@ -45,19 +47,21 @@ class ConvEmbedding(nn.Module):
         return x
 
 class Informer(nn.Module):
-    def __init__(self, enc_in, dec_in, c_out, seq_len, label_len, out_len, 
-                factor=5, d_model=512, n_heads=8, e_layers=3, d_layers=2, d_ff=512, 
-                dropout=0.0, attn='prob', embed='fixed', freq='h', activation='gelu', 
-                output_attention = False, distil=True, mix=True,
-                device=torch.device('cuda:0')):
+    def __init__(self, args, max_seq_length=1024,
+                factor=5, d_model=256, n_heads=8, e_layers=3, d_layers=2, d_ff=512, 
+                dropout=0.05, attn='prob', activation='gelu', 
+                output_attention = False, distil=False, mix=True):
         super(Informer, self).__init__()
-        self.pred_len = out_len
         self.attn = attn
         self.output_attention = output_attention
-
+        self.max_seq_length = max_seq_length
+        self.c_out = args.c_out
+        self.device= args.device
         # Encoding
-        self.enc_embedding = ConvEmbedding(enc_in)
-        self.dec_embedding = ConvEmbedding(dec_in)
+        self.enc_embedding = ConvEmbedding(args.enc_in, d_model=d_model)
+        self.dec_embedding = ConvEmbedding(args.dec_in, d_model=d_model)
+        self.enc_pe = PositionalEmbedding(d_model=d_model)
+        self.dec_pe = PositionalEmbedding(d_model=d_model)
         # Attention
         Attn = ProbAttention if attn=='prob' else FullAttention
         # Encoder
@@ -98,24 +102,60 @@ class Informer(nn.Module):
         )
         # self.end_conv1 = nn.Conv1d(in_channels=label_len+out_len, out_channels=out_len, kernel_size=1, bias=True)
         # self.end_conv2 = nn.Conv1d(in_channels=d_model, out_channels=c_out, kernel_size=1, bias=True)
-        self.projection = nn.Linear(d_model, c_out, bias=True)
+        self.projection = nn.Linear(d_model, self.c_out, bias=True)
+        self.x_enc_memory = None
+        self.x_dec_memory = None
         
-    def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, 
-                enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
-        enc_out = self.enc_embedding(x_enc, x_mark_enc)
-        enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask)
+    def forward(self, x, y=None, enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
+        pred_length = x.shape[1]
+        if self.x_enc_memory is None:
+            self.x_enc_memory = x
+        else:
+            self.x_enc_memory = torch.cat((self.x_enc_memory, x), 1)
+            if self.x_enc_memory.shape[1]>self.max_seq_length:
+                self.x_enc_memory = self.x_enc_memory[:,-self.max_seq_length:,:]
+        x_pad = torch.zeros((x.shape[0], pred_length, self.c_out)).to(self.device)  # 1, 60, 31
+        if self.x_dec_memory is not None:
+            x_dec = torch.cat((self.x_dec_memory, x_pad),1)
+        else:
+            x_dec = x_pad
 
-        dec_out = self.dec_embedding(x_dec, x_mark_dec)
+        enc_out = self.enc_embedding(self.x_enc_memory) +self.enc_pe(self.x_enc_memory)
+        enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask)
+        dec_out = self.dec_embedding(x_dec) + self.dec_pe(x_dec)
         dec_out = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, cross_mask=dec_enc_mask)
         dec_out = self.projection(dec_out)
         
         # dec_out = self.end_conv1(dec_out)
         # dec_out = self.end_conv2(dec_out.transpose(2,1)).transpose(1,2)
-        if self.output_attention:
-            return dec_out[:,-self.pred_len:,:], attns
-        else:
-            return dec_out[:,-self.pred_len:,:] # [B, L, D]
 
-audio = torch.randn(1, 60, 1024)
-labels = torch.randn(1, 60, 31) 
-a = ConvEmbedding()
+        if self.x_dec_memory is None:
+            self.x_dec_memory = dec_out
+        else:
+            if y is not None:
+                self.x_dec_memory = torch.cat((self.x_dec_memory, y), 1)
+            else:
+                self.x_dec_memory = torch.cat((self.x_dec_memory, dec_out),1)
+            if self.x_dec_memory.shape[1]>self.max_seq_length:
+                self.x_dec_memory=self.x_dec_memory[:,-self.max_seq_length:,:]
+        if self.output_attention:
+            return dec_out[:,-pred_length:,:], attns
+        else:
+            return dec_out[:,-pred_length:,:] # [B, L, D]
+    
+    def reset_hidden_cell(self):
+        self.x_enc_memory = None
+        self.x_dec_memory = None
+"""
+audio = torch.randn(1, 60, 1024).to("cuda:0")
+labels = torch.randn(1, 60, 31).to("cuda:0")
+from arguments import get_common_args, get_informer_args
+args = get_common_args()
+args = get_informer_args(args)
+inf = Informer(args,output_attention=False).to("cuda:0")
+print(inf(audio,labels).shape)
+print(inf.x_enc_memory.shape, inf.x_dec_memory.shape)
+print(inf(audio,labels).shape)
+print(inf.x_enc_memory.shape, inf.x_dec_memory.shape)
+print(inf(audio,labels).shape)
+print(inf.x_enc_memory.shape, inf.x_dec_memory.shape)"""

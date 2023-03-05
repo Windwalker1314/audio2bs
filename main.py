@@ -1,8 +1,9 @@
-from arguments import get_common_args,get_train_args
+from arguments import get_common_args,get_train_args,get_informer_args
 from dataset import get_dataloaders,create_dataloaders
 from trainer import train, inference,test
 import torch.optim as optim
 from model import LSTM, Faceformer, Conformer,Transformer
+from informer_model import Informer
 import torch.nn as nn
 
 #from transformers import HubertModel
@@ -21,6 +22,9 @@ def runner(args):
         model = Transformer()
     elif "Conformer" in args.model_name:
         model = Conformer()
+    elif "Informer" in args.model_name:
+        args = get_informer_args(args)
+        model = Informer(args)
     model.to(args.device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     
@@ -53,6 +57,9 @@ def infer(args):
         model = Transformer()
     elif "Conformer" in args.model_name:
         model = Conformer()
+    elif "Informer" in args.model_name:
+        args = get_informer_args(args)
+        model = Informer(args)
     model.to(args.device)
     test_data = os.listdir(args.test_data_path)
     wavs = []
@@ -94,8 +101,8 @@ def test_model(args):
 if __name__=="__main__":
     args = get_common_args()
     args = get_train_args(args)
-    runner(args)
-    #infer(args)
+    #runner(args)
+    infer(args)
     #test_model(args)
 
 
