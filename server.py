@@ -33,10 +33,12 @@ async def check_permit(websocket):
 # {
 #   "result":[[...],[...]]   # blendshape输出，float，shape(number_of_frames, 31)    
 #   "bs_name":[]             # blendshape名称，str, shape(31)
-#   "status":[]              # 401:给的数据有问题， 501：服务器推理错误， 200:成功
+#   "status":[]              # 401:给的数据有问题， 501：服务器推理错误， 200:成功（说明接下来还有数据，不重置模型缓存）,  201:成功（说明一段话预测结束，重置模型缓存）
 #   "message": ""            # 如果成功就输出"Success",否则输出错误log
 # }
 
+
+# 发一段空白语音测试用
 async def init_model(websocket):
     start_data = "Initializing ..."
     await websocket.send(start_data)
@@ -49,6 +51,7 @@ async def init_model(websocket):
     await websocket.send(start_data)
     return my_model
 
+# 主循环
 async def serverRecv(websocket, model):
     results = []
     while True:
@@ -74,8 +77,10 @@ async def serverRecv(websocket, model):
                 message = "Inference Success"
                 if status == 201:
                     model.reset_hidden_state()
-                    px = model.np_to_csv(np.concatenate(results,axis=0),False)
-                    px.to_csv(f"example.csv",index=False)
+                    if args.output_csv:
+                        # !!!! 如果不想输出csv文件，就去掉下面这行，对px进行处理
+                        px = model.np_to_csv(np.concatenate(results,axis=0),False)
+                        px.to_csv(f"example.csv",index=False)
             except Exception as e:
                 message = "Model Inference Failure "+str(type(e)) + str(e)
                 status = 501
@@ -90,6 +95,7 @@ async def serverRecv(websocket, model):
         print("解码加载数据:", int(round((t2-t1)*1000)), "ms")
         print("模型推理时间:", int(round((t3-t2)*1000)), "ms")
         print("发送数据:", int(round((t4-t3)*1000)), "ms")
+
 def handel_result(data):
     res = data["wav"]
     if isinstance(res, str):
@@ -138,6 +144,7 @@ async def serverRun(websocket, path):
     await check_permit(websocket)
     # 初始化模型
     model = await init_model(websocket)
+    model.reset_hidden_state()
     # 主循环 接受发送数据
     try:
         await serverRecv(websocket, model)

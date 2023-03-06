@@ -17,6 +17,7 @@ def get_train_args(args):
 def get_server_args(args):
     args.IP = "127.0.0.1"
     args.port = "2890"
+    args.output_csv = False   # 是否要输出结果的csv文件
     return args
 
 def get_informer_args(args):
