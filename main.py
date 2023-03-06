@@ -101,8 +101,8 @@ def test_model(args):
 if __name__=="__main__":
     args = get_common_args()
     args = get_train_args(args)
-    #runner(args)
-    infer(args)
+    runner(args)
+    #infer(args)
     #test_model(args)
 
 

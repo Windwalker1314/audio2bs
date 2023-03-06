@@ -1,11 +1,11 @@
 import torch
-from torch_audiomentations import Compose, Gain, PitchShift, AddBackgroundNoise,HighPassFilter,LowPassFilter
+from torch_audiomentations import Compose, Gain, PitchShift, HighPassFilter,LowPassFilter
 import random
 def augmentation(audio_samples,sample_rate):
     apply_augmentation = Compose(
         transforms=[
             Gain(
-                min_gain_in_db = -5.0,
+                min_gain_in_db = -12.0,
                 max_gain_in_db = 12.0,
                 p = 0.9,
             ),
