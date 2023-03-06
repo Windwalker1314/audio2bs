@@ -1,7 +1,7 @@
 import json
 import asyncio
 import websockets
-from arguments import get_common_args,get_train_args,get_server_args
+from arguments import get_common_args,get_train_args,get_server_args,get_informer_args
 from audio2bs import Audio2BS
 import os
 import base64
@@ -40,11 +40,8 @@ async def check_permit(websocket):
 async def init_model(websocket):
     start_data = "Initializing ..."
     await websocket.send(start_data)
-    base_model_path = args.base_model_path
-    model_path = os.path.join(args.model_path,args.model_name+".pth")
-    device = args.device
     # Load model
-    my_model =  Audio2BS(base_model_path, model_path, device)
+    my_model =  Audio2BS(args)
     test1 = np.zeros((16000),dtype=np.int16)
     my_model.inference(test1,16000)
 
@@ -131,7 +128,7 @@ def init():
     args = get_common_args()
     args = get_train_args(args)
     args = get_server_args(args)
-    
+    args = get_informer_args(args)
     server = websockets.serve(serverRun, args.IP, args.port, ping_interval=None, ping_timeout=None, close_timeout=1)
     return server
 

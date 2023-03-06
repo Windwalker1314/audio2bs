@@ -1,21 +1,14 @@
-from arguments import get_common_args,get_train_args
+from arguments import get_common_args,get_train_args,get_informer_args
 from audio2bs import Audio2BS
 import librosa
-import os
 import numpy as np
 import time
-def load_pcm(pcm_file):
-    b = np.fromfile(pcm_file,dtype=np.int16)
-    return b
 
 def infer(args):
-    base_model_path = args.base_model_path
-    model_path = os.path.join(args.model_path,args.model_name+".pth")
-    device = args.device
     # Load model 
-    my_model = Audio2BS(base_model_path, model_path, device, audio_section_length=args.audio_section_length)
+    my_model = Audio2BS(args)
     # Load Auido
-    audio, rate = librosa.load("./12.wav", sr=args.sampling_rate)
+    audio, rate = librosa.load("./test_audio.wav.wav", sr=args.sampling_rate)
     # Inference
     t1 = time.time()
     output = my_model.inference(audio, rate)
@@ -29,4 +22,6 @@ def infer(args):
 if __name__=="__main__":
     args = get_common_args()
     args = get_train_args(args)
+    if "Informer" in args.model_name:
+        args = get_informer_args(args)
     infer(args)

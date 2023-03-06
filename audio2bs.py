@@ -1,48 +1,26 @@
 import torch
-import torch.nn as nn
 from transformers import Wav2Vec2FeatureExtractor
 from transformers import HubertModel
 import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import resampy
-import time
-
-class LSTM(nn.Module):
-    def __init__(self, input_size=1024, hidden_layer_size=128, output_size=31):
-        super().__init__()
-        self.input_size=input_size
-        self.out_size=output_size
-        self.hidden_layer_size = hidden_layer_size
-        self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers=2, batch_first= True,  dropout=0.5, bidirectional=True)
-        self.linear = nn.Sequential(
-            nn.Linear(hidden_layer_size*2, output_size),
-            nn.ReLU(True)
-        )
-        self.hidden_cell = None
+from informer_model import Informer
+from lstm_model import LSTM
 
 
-    def forward(self, x):
-        if self.hidden_cell is None:
-            lstm_out, self.hidden_cell = self.lstm(x)
-        else:
-            lstm_out, self.hidden_cell = self.lstm(x,self.hidden_cell)
-        predictions = self.linear(lstm_out)
-        return predictions
-    
-    def reset_hidden_cell(self):
-        self.hidden_cell = None
 
 class Audio2BS():
-    def __init__(self, base_model_path, model_path, device, 
-                output_fps = 60, base_model_type = "Hubert", 
-                audio_section_length=1) -> None:
-        self.device = device
+    def __init__(self, args, output_fps = 60, base_model_type = "Hubert") -> None:
+        self.device = args.device
+        self.args = args
         self.base_model_type = base_model_type
-        self.audio_section_length = audio_section_length
-        self.processor = Wav2Vec2FeatureExtractor.from_pretrained(base_model_path)
-        self.model = self.load_model(model_path)
-        self.base_model, self.fps = self.load_base_model(base_model_path)
+        self.audio_section_length = args.audio_section_length
+        self.processor = Wav2Vec2FeatureExtractor.from_pretrained(args.base_model_path)
+        self.base_model, self.fps = self.load_base_model(args.base_model_path)
+
+        self.model_path = args.model_path
+        self.model = self.load_model(self.model_path)
         self.output_fps = output_fps
         self.MOUTH_BS = ['JawForward', 'JawRight', 'JawLeft', 'JawOpen',
                         'MouthClose', 'MouthFunnel', 'MouthPucker', 'MouthRight', 'MouthLeft',
@@ -58,7 +36,10 @@ class Audio2BS():
                         
     def load_model(self, model_path:str):
         if model_path.endswith(".pth"):
-            model = LSTM()
+            if "LSTM" in model_path:
+                model = LSTM()
+            elif "Informer" in model_path:
+                model = Informer(self.args)
             checkpoint_path = model_path
             checkpoint = torch.load(checkpoint_path)
             model.load_state_dict(checkpoint['model_state_dict'])
@@ -98,27 +79,17 @@ class Audio2BS():
         
         audio = resampy.resample(audio.astype(float),rate,16000)
         audio = self.processor(audio, return_tensors="pt", sampling_rate=16000).input_values
-        if audio.shape[1]<32000:
-            x = torch.FloatTensor(audio).to(dtype=torch.float32, device=self.device)
-            with torch.no_grad():
-                last_h_state = self.base_model(x).last_hidden_state
-            x = self.linear_interpolation(last_h_state, input_fps=self.fps, output_fps=60)
-            with torch.no_grad():
-                output = self.model(x)
-                output = output.detach().cpu().numpy()
-            torch.cuda.empty_cache()
-            return output
         chunks = torch.split(audio, self.audio_section_length*rate, dim=1)
         output = []
         for chunk in chunks:
             x = torch.FloatTensor(chunk).to(dtype=torch.float32, device=self.device)
-            if chunk.shape[1]<640:
+            if chunk.shape[1]<1100:
                 break
             with torch.no_grad():
                 last_h_state = self.base_model(x).last_hidden_state
             x = self.linear_interpolation(last_h_state, input_fps=self.fps, output_fps=60)
             with torch.no_grad():
-                x = self.model(x).detach().cpu().numpy()
+                x = torch.clamp(self.model(x),0,1).detach().cpu().numpy()
 
             output.append(x)
             del x
