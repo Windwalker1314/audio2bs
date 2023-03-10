@@ -15,7 +15,7 @@ MOUTH_BS = ['JawForward', 'JawRight', 'JawLeft', 'JawOpen',
        'CheekPuff', 'CheekSquintLeft', 'CheekSquintRight','TongueOut']
 
 MOUTH_BS_WEIGHT = [0.5, 0.2, 0.2, 1.5,
-       1.5, 1, 1, 1, 1,
+       1.5, 1.5, 1, 1, 1,
        1, 1, 1,
        1, 1, 1,
        1, 1, 1,

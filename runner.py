@@ -41,6 +41,7 @@ class Runner():
         self.checkpoint = torch.load(self.model_save_path) if os.path.exists(self.model_save_path) else None
         self.model = self._load_model(args)
         self.current_loss = self.checkpoint["loss"] if self.checkpoint is not None else 999999
+        print("current loss", self.current_loss)
 
         # optimizer
         if self.mode == "train":
@@ -67,7 +68,7 @@ class Runner():
         self.frac = 20   # 最小音频切分单元，也就是1/20秒的音频
         self.max_num_frac = args.audio_section_length * self.frac    # 切分的最大fraction数，比如1s音频就是20个fraction
         self.min_num_frac = 10                                       # 切分的最小fraction数，默认0.5s，10个fraction
-        self.mid_num_frac = (self.max_num_frac-self.min_num_frac)//2 # 验证用的fraction数
+        self.mid_num_frac = (self.max_num_frac+self.min_num_frac)//2 # 验证用的fraction数
 
         
 
@@ -90,7 +91,6 @@ class Runner():
                     if self.augmentation:
                         x_train, y_train = self._augmentation(x_train,y_train)
                     x_train, y_train = self._split(x_train, y_train, truncated=True, padded=True)
-
                     y_pred = []
                     y_true = []
                     for inputs,labels in zip(x_train, y_train):
@@ -182,6 +182,7 @@ class Runner():
             chunks = torch.split(audio, split_size, dim=1)
             output = []
             for chunk in chunks:
+                print(chunk.shape)
                 if chunk.shape[1]<640:
                     break
                 x = torch.FloatTensor(chunk).to(device=self.device)
@@ -303,10 +304,12 @@ class Runner():
         return xs[start_i:end_i], ys[start_i:end_i]
 
     def _preprocessing_input(self, x, y=None):
-        # x: batch, 1, audio_length
+        
+        
+        if len(x.shape)==3 and x.shape[1]==1:
+            x = x.squeeze(1)
+        # x: batch, audio_length
         # y: batch, frames, 31
-        assert len(x.shape)==3 and x.shape[1]==1, "Expected 3D shape but get "+str(x.shape)
-        x = x.squeeze(1)
         with torch.no_grad():
             last_hidden_state = self.base_model(x).last_hidden_state
         # 1, length, 1024

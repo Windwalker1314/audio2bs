@@ -58,7 +58,7 @@ def get_informer_args(args):
     args.d_model=256
     args.n_heads=8
     args.n_encoder_layers = 3
-    args.n_decoder_layers = 2
+    args.n_decoder_layers = 3
     args.d_feedforward = 512
     args.dropout_rate = 0.05
     args.attention_type = "prob"
