@@ -14,7 +14,7 @@ def str2bool(v):
 def get_common_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", type=str, default="train",choices=["train","eval","test"], help="The probgram mode (train/eval/test)")
-    parser.add_argument("--base_model_path", type=str, default="D:\\Data\\conformer\\hubert-large\chinese-hubert-large", help="The hubert model path")
+    parser.add_argument("--base_model_path", type=str, default="D:\\Data\\conformer\\hubert-large\\chinese-hubert-large", help="The hubert model path")
     parser.add_argument("--model_path", type=str, default="./model/model_checkpoints", help="Model path")
     parser.add_argument("--model_name", type=str, default="Informer_v1.0", help="Model Name")
     parser.add_argument("--dataset_path", type=str, default="./data/dataset/dataset.pkl", help="Model path")
