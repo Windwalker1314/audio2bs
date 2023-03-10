@@ -40,7 +40,7 @@ class Runner():
         self.model_save_path = os.path.join(args.model_path, self.model_type, self.model_name+".pth")
         self.checkpoint = torch.load(self.model_save_path) if os.path.exists(self.model_save_path) else None
         self.model = self._load_model(args)
-        self.current_loss = self.checkpoint["loss"] if self.checkpoint is not None else 999999
+        self.current_loss = self.checkpoint["loss"] if self.checkpoint is not None and args.load_model else 999999
         print("current loss", self.current_loss)
 
         # optimizer
@@ -182,8 +182,7 @@ class Runner():
             chunks = torch.split(audio, split_size, dim=1)
             output = []
             for chunk in chunks:
-                print(chunk.shape)
-                if chunk.shape[1]<640:
+                if chunk.shape[1]<1067:
                     break
                 x = torch.FloatTensor(chunk).to(device=self.device)
                 x, _ = self._preprocessing_input(x)
@@ -198,7 +197,83 @@ class Runner():
             torch.cuda.empty_cache()
 
     def test(self):
-        pass
+        assert(self.mode=="test")
+        
+        with tqdm(total=len(self.dataset["Train"]) + len(self.dataset["Valid"])) as t:
+            self.model.eval()
+            train_loss = []
+            for j, (x_train, y_train) in enumerate(self.dataset["Train"]):
+                # torch.Size([batch, 1, audio_length]) torch.Size([batch, csv_length, bs_dim])
+                self.model.reset_hidden_cell()
+                x_train, y_train = self._split(x_train, y_train, truncated=True, padded=True)
+                y_pred = []
+                y_true = []
+                for inputs,labels in zip(x_train, y_train):
+                    inputs = inputs.to(device=self.device,dtype=torch.float32)
+                    labels = labels.to(device=self.device,dtype=torch.float32)
+                    inputs, labels = self._preprocessing_input(inputs, labels)
+                    # x: batch, frames, 1024
+                    # y: batch, frames, 31
+                    with torch.no_grad():
+                        y_pred.append(self.model(inputs))
+                        y_true.append(labels)
+                    del inputs
+                    del labels
+                    torch.cuda.empty_cache()
+                
+                y_pred = torch.cat(y_pred, dim=1)
+                y_true = torch.cat(y_true, dim=1)
+                loss = self.criterion(y_pred, y_true)
+                train_loss.append(loss.cpu().detach().numpy())
+
+                del loss
+                del y_pred
+                del y_true
+                torch.cuda.empty_cache()
+                # Description will be displayed on the left
+                if j%20==0:
+                    t.set_description('Training')
+                    t.set_postfix(train_loss=np.mean(train_loss))
+                t.update(1)
+            train_loss_mean = np.mean(train_loss)
+            torch.cuda.empty_cache()
+            
+            valid_loss = []
+            for j, (x_valid, y_valid) in enumerate(self.dataset["Valid"]):
+                self.model.reset_hidden_cell()
+                x_valid, y_valid = self._split(x_valid, y_valid, truncated=False, padded=True)
+                y_pred = []
+                y_true = []
+                for inputs,labels in zip(x_valid, y_valid):
+                    inputs = inputs.to(device=self.device,dtype=torch.float32)
+                    labels = labels.to(device=self.device,dtype=torch.float32)
+                    inputs, labels = self._preprocessing_input(inputs, labels)
+
+                    with torch.no_grad():
+                        y_pred.append(torch.clamp(self.model(inputs),0,1))
+                        y_true.append(labels)
+                    del inputs
+                    del labels
+                    torch.cuda.empty_cache()
+                y_pred = torch.cat(y_pred, dim=1)
+                y_true = torch.cat(y_true, dim=1)
+                loss = self.criterion(y_pred, y_true)
+                valid_loss.append(loss.cpu().detach().numpy())
+
+                del loss
+                del y_pred
+                del y_true
+                torch.cuda.empty_cache()
+
+                if j%10==0:
+                    t.set_description('Validation')
+                    t.set_postfix(train_loss=np.mean(train_loss), val_loss = np.mean(valid_loss))
+                t.update(1)
+            mean_val_loss = np.mean(valid_loss)
+            t.set_description('Test')
+            t.set_postfix(train_loss=train_loss_mean, val_loss=mean_val_loss, lr=self._get_lr())
+            del train_loss
+            del valid_loss
     
     def run(self):
         if self.mode=="train":
@@ -281,7 +356,7 @@ class Runner():
     def _split(self, x_train, y_train, truncated=True, padded=True):
         # x: batch, 1, audio_length
         # y: batch, frames, 31
-        split_size = random.randint(self.min_num_frac, self.max_num_frac) / 20
+        split_size = random.randint(self.min_num_frac, self.max_num_frac) / self.frac
         split_size_x = int(self.sampling_rate * split_size)
         split_size_y = int(self.output_fps    * split_size)
         xs = list(torch.split(x_train, split_size_x, dim=2)) # x: batch, 1, split_size_x
@@ -304,8 +379,6 @@ class Runner():
         return xs[start_i:end_i], ys[start_i:end_i]
 
     def _preprocessing_input(self, x, y=None):
-        
-        
         if len(x.shape)==3 and x.shape[1]==1:
             x = x.squeeze(1)
         # x: batch, audio_length

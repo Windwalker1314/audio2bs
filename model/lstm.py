@@ -14,7 +14,7 @@ class LSTM(nn.Module):
             bidirectional=args.bidirectional, 
             batch_first=True)
         self.linear = nn.Sequential(
-            nn.Linear(self.hidden_layer_size*2, self.output_size),
+            nn.Linear(self.hidden_layer_size*2, self.out_size),
             nn.ReLU(True)
         )
         self.hidden_cell = None
