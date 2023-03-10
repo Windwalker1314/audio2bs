@@ -14,6 +14,16 @@ MOUTH_BS = ['JawForward', 'JawRight', 'JawLeft', 'JawOpen',
        'MouthLowerDownRight', 'MouthUpperUpLeft', 'MouthUpperUpRight',
        'CheekPuff', 'CheekSquintLeft', 'CheekSquintRight','TongueOut']
 
+MOUTH_BS_WEIGHT = [0.5, 0.2, 0.2, 1.5,
+       1.5, 1, 1, 1, 1,
+       1, 1, 1,
+       1, 1, 1,
+       1, 1, 1,
+       1, 1, 1,
+       1, 1, 1,
+       1, 1, 1,
+       0.5, 0.2, 0.2, 1]
+
 class EarlyStopping():
     def __init__(self, model_name, best_score=-np.Inf, patience=4, verbose=False, delta=0):
         self.patience = patience
@@ -52,6 +62,14 @@ class EarlyStopping():
         }, path)
         #torch.save(model.state_dict(), path+'/'+model_name+'.pth')
         self.val_loss_min = val_loss
+
+class Weighted_MSE(torch.nn.Module):
+    def __init__(self, weight):
+        super().__init__()
+        self.register_buffer('w', torch.FloatTensor(weight))
+        
+    def forward(self, y_pred, y_true):
+        return torch.mean(torch.pow((y_pred - y_true), 2) * self.w)
 
 def linear_interpolation(features, input_fps, output_fps, output_len=None):
     features = features.transpose(1, 2)

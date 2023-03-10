@@ -3,7 +3,7 @@ from model.lstm import LSTM
 from arguments import *
 from dataset import get_dataloaders, create_dataloaders
 import os
-from util import EarlyStopping, linear_interpolation, np_to_csv
+from util import EarlyStopping, linear_interpolation, np_to_csv, Weighted_MSE, MOUTH_BS_WEIGHT
 from augmentation import *
 from tqdm import tqdm
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -55,7 +55,7 @@ class Runner():
         
         # critirion
         if self.mode == "test" or self.mode=="train":
-            self.criterion = self._load_criterion("MSE", self.device)
+            self.criterion = self._load_criterion(args.criterion, self.device)
         else:
             self.criterion = None
 
@@ -264,6 +264,8 @@ class Runner():
     def _load_criterion(self, criterion_name:str, device:str):
         if criterion_name == "MSE":
             criterion = torch.nn.MSELoss()
+        elif criterion_name == "WMSE":
+            criterion = Weighted_MSE(MOUTH_BS_WEIGHT)
         else:
             raise InvalidArguments("Invalid Criterion name")
         criterion.to(device)
