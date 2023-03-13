@@ -3,7 +3,7 @@ from model.lstm import LSTM
 from arguments import *
 from dataset import get_dataloaders, create_dataloaders
 import os
-from util import EarlyStopping, linear_interpolation, np_to_csv, Weighted_MSE, MOUTH_BS_WEIGHT
+from util import *
 from augmentation import *
 from tqdm import tqdm
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -70,7 +70,8 @@ class Runner():
         self.min_num_frac = 10                                       # 切分的最小fraction数，默认0.5s，10个fraction
         self.mid_num_frac = (self.max_num_frac+self.min_num_frac)//2 # 验证用的fraction数
 
-        
+        # post processing
+        self.alpha = 0 if args.smoothing_alpha<=0 else min(args.smoothing_alpha,1)
 
         # test
         self.test_data_path = args.test_data_path
@@ -193,6 +194,7 @@ class Runner():
                 torch.cuda.empty_cache()
             x = np.concatenate(output,axis=1)
             px = np_to_csv(x, calibration=False)
+            px[MOUTH_BS] = px[MOUTH_BS].apply(exponential_smoothing, alpha=self.alpha,axis=0)
             px.to_csv(wav_path[:-4]+"_"+self.model_name+".csv",index=False)
             torch.cuda.empty_cache()
 
@@ -364,8 +366,8 @@ class Runner():
         if len(xs)-len(ys)==1:
             xs.pop(-1)
         assert len(xs)==len(ys), str(len(xs))+" "+str(len(ys))+" "+str(xs[-1].shape)
-        start_i = random.randint(0,min(0,len(xs)//2-2)) if truncated else 0
-        end_i = random.randint(max(len(xs)//2+2,len(xs)),len(xs)) if truncated else len(xs)
+        start_i = random.randint(0,max(0,len(xs)//2-2)) if truncated else 0
+        end_i = random.randint(min(len(xs)//2+2,len(xs)),len(xs)) if truncated else len(xs)
         if padded:
             last_x_shape = xs[-1].shape
             last_y_shape = ys[-1].shape
@@ -402,3 +404,5 @@ class Runner():
             if f.endswith(".wav"):
                 wav_paths.append(os.path.join(test_data_path, f))
         return wav_paths
+    
+    

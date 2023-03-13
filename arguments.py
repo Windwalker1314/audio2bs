@@ -16,7 +16,7 @@ def get_common_args():
     parser.add_argument("--mode", type=str, default="train",choices=["train","eval","test"], help="The probgram mode (train/eval/test)")
     parser.add_argument("--base_model_path", type=str, default="D:\\Data\\conformer\\hubert-large\\chinese-hubert-large", help="The hubert model path")
     parser.add_argument("--model_path", type=str, default="./model/model_checkpoints", help="Model path")
-    parser.add_argument("--model_name", type=str, default="Informer_v1.0", help="Model Name")
+    parser.add_argument("--model_name", type=str, default="LSTM_v2.2", help="Model Name")
     parser.add_argument("--dataset_path", type=str, default="./data/dataset/dataset.pkl", help="Model path")
     parser.add_argument("--dataset_list", type=str, default="yifeng;yifeng_150;yifeng_350;clean_yifeng;clean_yifeng_350", help="dataset name")
     parser.add_argument("--data_path", type=str, default="D:\\Data\\audio2bs\\data", help="The dataset root path")
@@ -42,6 +42,8 @@ def get_common_args():
     parser.add_argument("--schedular", type=str, default="ReduceLROnPlateau", choices=["ReduceLROnPlateau"], help="learning rate")
     parser.add_argument("--max_audio_length", type=float, default=20, help="max_audio_length")
     parser.add_argument("--audio_section_length", type=float, default=1, help="audio_section_length(for training)")
+    
+    parser.add_argument("--smoothing_alpha", type=float, default=0,  help="Smoothing parameter")
     args = parser.parse_args()
     return args
 
@@ -53,12 +55,12 @@ def get_informer_args(args):
     args.enc_in = 1024
     args.dec_in = 31
     args.c_out = 31
-    args.max_seq_length=1024
+    args.max_seq_length=512
     args.factor=5
     args.d_model=256
     args.n_heads=8
     args.n_encoder_layers = 3
-    args.n_decoder_layers = 2
+    args.n_decoder_layers = 3
     args.d_feedforward = 512
     args.dropout_rate = 0.05
     args.attention_type = "prob"

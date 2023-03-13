@@ -15,7 +15,7 @@ MOUTH_BS = ['JawForward', 'JawRight', 'JawLeft', 'JawOpen',
        'CheekPuff', 'CheekSquintLeft', 'CheekSquintRight','TongueOut']
 
 MOUTH_BS_WEIGHT = [0.5, 0.2, 0.2, 1.5,
-       1.5, 1.5, 1, 1, 1,
+       1.5, 1.5, 1.5, 1, 1,
        1, 1, 1,
        1, 1, 1,
        1, 1, 1,
@@ -71,6 +71,8 @@ class Weighted_MSE(torch.nn.Module):
     def forward(self, y_pred, y_true):
         return torch.mean(torch.pow((y_pred - y_true), 2) * self.w)
 
+
+
 def linear_interpolation(features, input_fps, output_fps, output_len=None):
     features = features.transpose(1, 2)
     seq_len = features.shape[2] / float(input_fps)
@@ -112,3 +114,10 @@ def np_to_csv(x, calibration):
         timecode = '%02d:%02d:%02d:%02d.%d' % (h,m,s,f,i)
         px.iloc[i,0] = timecode
     return px
+
+def exponential_smoothing(series, alpha):
+    result = np.array([series[0]])
+    n = np.array(series[1:])
+    n_prev = np.array(series[:-1])
+    result1 = alpha*n+(1-alpha)*n_prev
+    return np.concatenate((result, result1))
